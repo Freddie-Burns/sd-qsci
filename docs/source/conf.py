@@ -58,3 +58,4 @@ html_theme_options = {
     "style_external_links": True,
 }
 html_baseurl = "https://freddie-burns.github.io/sd_qsci/"
+
