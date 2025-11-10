@@ -3,6 +3,10 @@ name = "sd-qsci"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
+license = { file = "LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+]
 authors = [
     { name = "fredd", email = "freddieburns@hotmail.co.uk" }
 ]
