@@ -125,10 +125,4 @@ uv run pytest
 
 ## License
 
-<<<<<<< HEAD
 MIT License © [Freddie Burns] 2025
-=======
-MIT License © [Freddie Burns] 2025
-
-
->>>>>>> bdcc0e65f11d53a129c37e511c300879bb307c02
