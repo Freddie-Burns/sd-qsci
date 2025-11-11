@@ -30,14 +30,14 @@ Examples
 Build Hamiltonian from PySCF:
 
 >>> from pyscf import gto, scf
->>> from sd_qsci.hamiltonian import hamiltonian_from_pyscf
+>>> from sd-qsci.hamiltonian import hamiltonian_from_pyscf
 >>> mol = gto.M(atom='H 0 0 0; H 0 0 1', basis='sto-3g')
 >>> rhf = scf.RHF(mol).run()
 >>> H = hamiltonian_from_pyscf(mol, rhf)
 
 Build Hamiltonian from integrals:
 
->>> from sd_qsci.hamiltonian import hamiltonian_matrix
+>>> from sd-qsci.hamiltonian import hamiltonian_matrix
 >>> H = hamiltonian_matrix(h1, g2_phys, enuc=0.0)
 """
 

@@ -7,10 +7,10 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 import os, sys
-# Make sd_qsci package importable by Sphinx (src/ layout)
+# Make sd-qsci package importable by Sphinx (src/ layout)
 sys.path.insert(0, os.path.abspath('../../src'))
 
-project = 'sd_qsci'
+project = 'sd-qsci'
 copyright = '2025, Freddie Burns'
 author = 'Freddie Burns'
 
