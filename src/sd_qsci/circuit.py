@@ -112,14 +112,7 @@ def rhf_uhf_orbital_rotation_circuit(
     Returns
     -------
     circuit : qiskit.QuantumCircuit
-    uhf : pyscf.scf.uhf.UHF
-        The UHF mean-field used to construct the circuit.
-    unitaries : tuple[np.ndarray, np.ndarray]
-        `(Ua, Ub)` unitaries mapping RHF MOs to UHF MOs.
     """
-    if uhf is None:
-        uhf = uhf_from_rhf(mol, rhf)
-
     Ua, Ub = uhf_to_rhf_unitaries(mol, rhf, uhf)
     qc = orbital_rotation_circuit(
         nao=mol.nao,
@@ -129,7 +122,7 @@ def rhf_uhf_orbital_rotation_circuit(
         prepare_hf=True,
         optimize_single_slater=optimize_single_slater,
     )
-    return qc, uhf, (Ua, Ub)
+    return qc
 
 
 def run_statevector(qc, *, optimization_level: int = 1):

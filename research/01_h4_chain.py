@@ -59,7 +59,7 @@ print(df)
 
 # Energy comparison
 H = hamiltonian_from_pyscf(mol, rhf)
-qsci_energy = (statevector.data.conj() @ (H @ statevector.data)).real
+sv_energy = (statevector.data.conj() @ H @ statevector.data).real
 uhf_energy = uhf.e_tot
 rhf_energy = rhf.e_tot
 
@@ -70,7 +70,7 @@ fci_s2, mult = ci_solver.spin_square(fci_vec, mol.nao, mol.nelec)
 print("FCI energy:", fci_energy)
 print("RHF energy:", rhf_energy)
 print("UHF energy:", uhf_energy)
-print("QSCI energy (expectation):", qsci_energy)
+print("Statevector energy (expectation):", sv_energy)
 
 # Spin comparison
 idx = np.argwhere(np.abs(statevector.data) > 1e-12).ravel()
