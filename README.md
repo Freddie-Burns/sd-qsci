@@ -48,61 +48,47 @@ sd-qsci/
 ```
 
 ---
-git clone https://github.com/Freddie-Burns/sd-qsci.git
-cd sd-qsci
+
+## Installation
 
 This project uses [**uv**](https://github.com/astral-sh/uv) for dependency management.
 
 ```bash
-# Clone repository
-git clone https://github.com/Freddie-Burns/sd_qsci.git
-cd single_determinant_qsci
+# Clone the repository
+git clone https://github.com/Freddie-Burns/sd-qsci.git
+cd sd-qsci
 
-# Create virtual environment
-uv venv
+# Install all dependencies (creates virtual environment automatically)
+uv sync
+
+# Install with dev dependencies (includes Sphinx, JupyterLab, etc.)
+uv sync --all-groups
+```
+
+### Main dependencies
+
 * [PySCF](https://pyscf.org) — ab initio electronic structure calculations
 * [Qiskit](https://qiskit.org) — quantum circuit construction and simulation
-* [ffsim](https://github.com/qiskit-community/ffsim) — fermion simulation
+* [ffsim](https://github.com/qiskit-community/ffsim) — fermion simulation for quantum circuits
 * [NumPy](https://numpy.org) — numerical computing
 * [SciPy](https://scipy.org) — scientific computing
-```
-Main dependencies:
-
-* [PySCF](https://pyscf.org) — reference mean-field and integrals
-* [Qiskit](https://qiskit.org) — quantum simulation
-* [NumPy](https://numpy.org)
 * [pytest](https://docs.pytest.org) — testing framework
-* [JupyterLab](https://jupyter.org) — visualising molecular orbitals
 
-uv run python -m sd_qsci
+---
 
 ## Quick start
 
-Run the demo script:
+Launch Jupyter notebooks to explore examples:
 
 ```bash
-uv run python -m single_determinant_qsci.main
-```
-Example notebooks:
-or launch notebooks:
-
-notebooks/dev/00_hamiltonian_tutorial.ipynb
 uv run jupyter lab
 ```
-Demonstrates Hamiltonian construction from PySCF molecular systems.
-Example notebook:
 
-notebooks/dev/01_verify_unitary_qc.ipynb
-notebooks/01_h2_uhf_trial.ipynb
+Example notebooks:
 
-Verifies unitarity of quantum circuits and orbital rotation operations.
-```
-
-Demonstrates generating an unrestricted Hartree–Fock determinant for H₂ and evaluating its effectiveness in a small QSCI circuit.
-
-```
-notebooks/hamiltonian_tutorial.ipynb
-```
+* `notebooks/dev/00_hamiltonian_tutorial.ipynb` — Hamiltonian construction from PySCF molecular systems
+* `notebooks/dev/01_verify_unitary_qc.ipynb` — Verifies unitarity of quantum circuits and orbital rotation operations
+* `notebooks/dev/02_verify_unitary_qc.ipynb` — Uses `qc.py` functions for circuit creation and simulation
 
 ---
 
@@ -113,6 +99,36 @@ Run tests via:
 ```bash
 uv run pytest
 ```
+
+---
+
+## Documentation
+
+API documentation is built with [Sphinx](https://www.sphinx-doc.org/) and hosted at:  
+**https://freddie-burns.github.io/sd-qsci/**
+
+### Building docs locally
+
+```bash
+# Install dev dependencies (if not already done)
+uv sync --all-groups
+
+# Build HTML documentation
+uv run python -m sphinx -b html docs/source docs/_build/html
+
+# View the built docs
+# On Linux/WSL:
+xdg-open docs/_build/html/index.html
+# On macOS:
+open docs/_build/html/index.html
+# On Windows:
+start docs/_build/html/index.html
+```
+
+The documentation includes:
+- Full API reference with auto-generated function signatures
+- Module documentation for `hamiltonian`, `qc`, `spin`, and `utils`
+- Type hints and NumPy-style docstrings
 
 ---
 

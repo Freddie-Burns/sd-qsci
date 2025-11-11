@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>sd_qsci documentation &mdash; sd-qsci 0.1 documentation</title>
+  <title>sd-qsci documentation &mdash; sd-qsci 0.1 documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
 
@@ -50,7 +50,7 @@
 <li class="toctree-l4"><a class="reference internal" href="api/sd_qsci.hamiltonian.html">sd_qsci.hamiltonian package</a></li>
 </ul>
 </li>
-<li class="toctree-l3"><a class="reference internal" href="api/sd_qsci.html#module-contents">Module contents</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/sd_qsci.html#module-sd_qsci">Module contents</a></li>
 </ul>
 </li>
 </ul>
@@ -71,7 +71,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="#" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">sd_qsci documentation</li>
+      <li class="breadcrumb-item active">sd-qsci documentation</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/index.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -82,10 +82,46 @@
            <div itemprop="articleBody">
              
   <section id="sd-qsci-documentation">
-<h1>sd_qsci documentation<a class="headerlink" href="#sd-qsci-documentation" title="Link to this heading"></a></h1>
-<p>Add your content using <code class="docutils literal notranslate"><span class="pre">reStructuredText</span></code> syntax. See the
-<a class="reference external" href="https://www.sphinx-doc.org/en/master/usage/restructuredtext/index.html">reStructuredText</a>
-documentation for details.</p>
+<h1>sd-qsci documentation<a class="headerlink" href="#sd-qsci-documentation" title="Link to this heading"></a></h1>
+<p><strong>Single Determinant Quantum Simulation Chemistry Investigation</strong></p>
+<p><code class="docutils literal notranslate"><span class="pre">sd-qsci</span></code> is a Python package for investigating the effectiveness of single Slater
+determinant trial wavefunctions in quantum simulation chemistry (QSCI) methods.</p>
+<p>This package provides tools to:</p>
+<ul class="simple">
+<li><p>Construct fermionic Hamiltonians from PySCF mean-field calculations</p></li>
+<li><p>Generate quantum circuits for orbital rotations (RHF → UHF transitions)</p></li>
+<li><p>Analyze spin properties of quantum states</p></li>
+<li><p>Interface between classical quantum chemistry (PySCF) and quantum simulation (Qiskit)</p></li>
+</ul>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h2>
+<p>Install using <a class="reference external" href="https://github.com/astral-sh/uv">uv</a>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/Freddie-Burns/sd-qsci.git
+<span class="nb">cd</span><span class="w"> </span>sd-qsci
+uv<span class="w"> </span>sync
+</pre></div>
+</div>
+</section>
+<section id="quick-start">
+<h2>Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading"></a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">pyscf</span><span class="w"> </span><span class="kn">import</span> <span class="n">gto</span><span class="p">,</span> <span class="n">scf</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sd_qsci.hamiltonian</span><span class="w"> </span><span class="kn">import</span> <span class="n">hamiltonian_from_pyscf</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sd_qsci.qc</span><span class="w"> </span><span class="kn">import</span> <span class="n">rhf_uhf_orbital_rotation_circuit</span><span class="p">,</span> <span class="n">run_statevector</span>
+
+<span class="c1"># Define molecule</span>
+<span class="n">mol</span> <span class="o">=</span> <span class="n">gto</span><span class="o">.</span><span class="n">M</span><span class="p">(</span><span class="n">atom</span><span class="o">=</span><span class="s1">&#39;H 0 0 0; H 0 0 0.74&#39;</span><span class="p">,</span> <span class="n">basis</span><span class="o">=</span><span class="s1">&#39;sto-3g&#39;</span><span class="p">)</span>
+<span class="n">rhf</span> <span class="o">=</span> <span class="n">scf</span><span class="o">.</span><span class="n">RHF</span><span class="p">(</span><span class="n">mol</span><span class="p">)</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+
+<span class="c1"># Generate quantum circuit for orbital rotation</span>
+<span class="n">circuit</span><span class="p">,</span> <span class="n">uhf</span><span class="p">,</span> <span class="p">(</span><span class="n">Ua</span><span class="p">,</span> <span class="n">Ub</span><span class="p">)</span> <span class="o">=</span> <span class="n">rhf_uhf_orbital_rotation_circuit</span><span class="p">(</span><span class="n">mol</span><span class="p">,</span> <span class="n">rhf</span><span class="p">)</span>
+
+<span class="c1"># Run simulation</span>
+<span class="n">statevector</span> <span class="o">=</span> <span class="n">run_statevector</span><span class="p">(</span><span class="n">circuit</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="api-reference">
+<h2>API Reference<a class="headerlink" href="#api-reference" title="Link to this heading"></a></h2>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
@@ -95,6 +131,15 @@ documentation for details.</p>
 </li>
 </ul>
 </div>
+</section>
+</section>
+<section id="indices-and-tables">
+<h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Link to this heading"></a></h1>
+<ul class="simple">
+<li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
+<li><p><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></p></li>
+<li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
+</ul>
 </section>
 
 
