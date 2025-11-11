@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Quantum-circuit helpers for orbital rotation workflows.
 
