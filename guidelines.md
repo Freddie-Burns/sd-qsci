@@ -1,4 +1,4 @@
-# sd_qsci – Development Guidelines (project-specific)
+# sd-qsci – Development Guidelines (project-specific)
 
 This note captures practical, project-specific details for advanced contributors. It focuses on the real environment used here (uv + PySCF + Qiskit), test execution patterns, and debugging tips relevant to this repository.
 
