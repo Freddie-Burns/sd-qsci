@@ -4,26 +4,26 @@ import pytest
 from pyscf import gto, scf
 from pyscf.scf.uhf import UHF
 
-from sd_qsci.qc import (
-    build_orbital_rotation_circuit,
+from sd_qsci.circuit import (
+    orbital_rotation_circuit,
     rhf_uhf_orbital_rotation_circuit,
     run_statevector,
 )
 
 
-def test_build_orbital_rotation_circuit_structure():
+def test_orbital_rotation_circuit():
     # Optional deps for this test
     pytest.importorskip("ffsim")
     pytest.importorskip("qiskit")
 
-    n_orb = 2
-    n_elec = (1, 1)
-    Ua = np.eye(n_orb)
-    Ub = np.eye(n_orb)
+    nao = 2
+    nelec = (1, 1)
+    Ua = np.eye(nao)
+    Ub = np.eye(nao)
 
-    qc = build_orbital_rotation_circuit(
-        n_orb=n_orb,
-        n_elec=n_elec,
+    qc = orbital_rotation_circuit(
+        nao=nao,
+        nelec=nelec,
         Ua=Ua,
         Ub=Ub,
         prepare_hf=True,
@@ -31,7 +31,7 @@ def test_build_orbital_rotation_circuit_structure():
     )
 
     # Total qubits should be 2*n_orb (BLOCK spin ordering)
-    assert qc.num_qubits == 2 * n_orb
+    assert qc.num_qubits == 2 * nao
     # Circuit should contain at least the HF preparation
     assert len(qc.data) > 0
 
