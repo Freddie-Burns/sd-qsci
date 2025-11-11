@@ -28,9 +28,9 @@ from pyscf.scf.uhf import UHF
 from .utils import uhf_from_rhf, uhf_to_rhf_unitaries
 
 
-def build_orbital_rotation_circuit(
-    n_orb: int,
-    n_elec: tuple[int, int],
+def orbital_rotation_circuit(
+    nao: int,
+    nelec: tuple[int, int],
     Ua: np.ndarray,
     Ub: np.ndarray,
     *,
@@ -43,9 +43,9 @@ def build_orbital_rotation_circuit(
 
     Parameters
     ----------
-    n_orb : int
+    nao : int
         Number of spatial orbitals (PySCF `mol.nao`). Total qubits = 2*n_orb.
-    n_elec : tuple[int, int]
+    nelec : tuple[int, int]
         Number of alpha and beta electrons `(n_alpha, n_beta)`.
     Ua, Ub : np.ndarray
         Unitary matrices (shape `(n_orb, n_orb)`) mapping RHF MOs to UHF MOs
@@ -67,14 +67,14 @@ def build_orbital_rotation_circuit(
     import ffsim
     from qiskit import QuantumCircuit, QuantumRegister
 
-    qubits = QuantumRegister(2 * n_orb, name="q")
+    qubits = QuantumRegister(2 * nao, name="q")
     qc = QuantumCircuit(qubits)
 
     if prepare_hf:
-        qc.append(ffsim.qiskit.PrepareHartreeFockJW(n_orb, n_elec), qubits)
+        qc.append(ffsim.qiskit.PrepareHartreeFockJW(nao, nelec), qubits)
 
     # Follow the notebook’s convention: feed transposed unitaries
-    qc.append(ffsim.qiskit.OrbitalRotationJW(n_orb, (Ua.T, Ub.T)), qubits)
+    qc.append(ffsim.qiskit.OrbitalRotationJW(nao, (Ua.T, Ub.T)), qubits)
 
     if optimize_single_slater:
         # Optimize for an initialized single Slater determinant state
@@ -119,9 +119,9 @@ def rhf_uhf_orbital_rotation_circuit(
         uhf = uhf_from_rhf(mol, rhf)
 
     Ua, Ub = uhf_to_rhf_unitaries(mol, rhf, uhf)
-    qc = build_orbital_rotation_circuit(
-        n_orb=mol.nao,
-        n_elec=mol.nelec,
+    qc = orbital_rotation_circuit(
+        nao=mol.nao,
+        nelec=mol.nelec,
         Ua=Ua,
         Ub=Ub,
         prepare_hf=True,
@@ -158,7 +158,7 @@ def run_statevector(circuit, *, optimization_level: int = 1):
 
 
 __all__ = [
-    "build_orbital_rotation_circuit",
+    "orbital_rotation_circuit",
     "rhf_uhf_orbital_rotation_circuit",
     "run_statevector",
 ]

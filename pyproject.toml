@@ -24,8 +24,9 @@ dependencies = [
     "scipy>=1.16.3",
 ]
 
-[project.scripts]
-sd-qsci = "sd_qsci:main"
+# Uncomment the following lines to add console scripts
+# [project.scripts]
+# sd-qsci = "sd_qsci:main"
 
 [build-system]
 requires = ["uv_build>=0.9.7,<0.10.0"]
