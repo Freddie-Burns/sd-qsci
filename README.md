@@ -72,7 +72,7 @@ Main dependencies:
 * [Qiskit](https://qiskit.org) — quantum simulation
 * [NumPy](https://numpy.org)
 * [pytest](https://docs.pytest.org) — testing framework
-* [JupyterLab](https://jupyter.org) — interactive analysis
+* [JupyterLab](https://jupyter.org) — visualising molecular orbitals
 
 uv run python -m sd_qsci
 
