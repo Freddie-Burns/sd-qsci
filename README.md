@@ -48,7 +48,7 @@ This project uses [**uv**](https://github.com/astral-sh/uv) for dependency manag
 
 ```bash
 # Clone repository
-git clone https://github.com/<yourname>/single_determinant_qsci.git
+git clone https://github.com/Freddie-Burns/sd_qsci.git
 cd single_determinant_qsci
 
 # Create virtual environment
@@ -126,3 +126,4 @@ uv run pytest
 ## License
 
 MIT License © [Freddie Burns] 2025
+
