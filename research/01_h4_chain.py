@@ -6,7 +6,10 @@ as the input UHF state.
 
 import numpy as np
 import pandas as pd
+import seaborn as sns
+from matplotlib import pyplot as plt
 from pyscf import gto, scf, fci
+from scipy.linalg import eigh
 from scipy.sparse.linalg import eigsh
 
 from sd_qsci.utils import uhf_from_rhf, uhf_to_rhf_unitaries
@@ -14,14 +17,74 @@ from sd_qsci import circuit, hamiltonian, spin, utils
 
 
 def main():
-    for bond_length in [2]:
+    """
+    Run H4 chain energy calculations across multiple bond lengths.
+
+    Performs RHF, UHF, FCI, and QSCI calculations on a linear H4 chain
+    for bond lengths ranging from 0.5 to 3.0 Angstrom. Generates a plot
+    comparing the energy methods and saves it to 'figures/h4_chain_energies.png'.
+
+    The workflow for each bond length:
+    1. Build H4 chain molecule
+    2. Run RHF calculation
+    3. Generate UHF from RHF (symmetry-breaking)
+    4. Create quantum circuit for orbital rotation (RHF → UHF)
+    5. Simulate circuit to obtain statevector
+    6. Calculate FCI energy (exact benchmark)
+    7. Calculate QSCI energy from statevector subspace
+    8. Store results for plotting
+
+    Notes
+    -----
+    Asserts that the statevector energy matches the UHF energy to validate
+    the orbital rotation circuit implementation.
+    """
+    rhf_energies = []
+    uhf_energies = []
+    fci_energies = []
+    qsci_energies = []
+    bond_lengths = []
+
+    for bond_length in np.linspace(0.5, 3, 21):
+        print(f"Running bond length: {bond_length:.2f} Angstrom")
         mol = build_h4_chain(bond_length)
         rhf = scf.RHF(mol).run()
         uhf = uhf_from_rhf(mol, rhf)
         qc = circuit.rhf_uhf_orbital_rotation_circuit(mol, rhf, uhf)
         sv = circuit.simulate(qc)
         H = hamiltonian.hamiltonian_from_pyscf(mol, rhf)
-        qsci_energy(H, sv)
+        sv_energy = (sv.data.conj().T @ H @ sv.data).real
+        assert np.isclose(sv_energy, uhf.e_tot)
+
+        fci_energy = calc_fci_energy(rhf)
+        qsci_energy = calc_qsci_energy(H, sv)
+
+        bond_lengths.append(bond_length)
+        rhf_energies.append(rhf.e_tot)
+        uhf_energies.append(uhf.e_tot)
+        fci_energies.append(fci_energy)
+        qsci_energies.append(qsci_energy)
+
+    # Plot energies vs bond length
+    sns.set_style("whitegrid")
+    plt.figure(figsize=(10, 6))
+
+    plt.plot(bond_lengths, rhf_energies, 'o-', label='RHF', linewidth=2, markersize=8)
+    plt.plot(bond_lengths, uhf_energies, 'o-', label='UHF', linewidth=2, markersize=8)
+    plt.plot(bond_lengths, fci_energies, 's-', label='FCI', linewidth=2, markersize=8)
+    plt.plot(bond_lengths, qsci_energies, '^-', label='QSCI', linewidth=2, markersize=8)
+
+    plt.xlabel('Bond Length (Angstrom)', fontsize=12)
+    plt.ylabel('Energy (Hartree)', fontsize=12)
+    plt.title('H4 Chain: Energy vs Bond Length', fontsize=14, fontweight='bold')
+    plt.legend(fontsize=11)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig('figures/h4_chain_energies.png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+    print("\nPlot saved as 'h4_chain_energies.png'")
+
 
 
 def build_h4_chain(bond_length):
@@ -67,13 +130,117 @@ def build_h4_chain(bond_length):
     return mol
 
 
-def qsci_energy(H, statevector):
-    sampled_configs = np.argwhere(np.abs(statevector.data) > 1e-12)[:,1]
-    print(sampled_configs)
-    return (statevector.data.conj() @ H @ statevector.data).real
+def calc_fci_energy(rhf):
+    """
+    Calculate Full Configuration Interaction (FCI) energy.
+
+    Uses PySCF's FCI solver to compute the exact ground state energy
+    within the given basis set. FCI provides the numerically exact
+    solution to the Schrödinger equation for the given orbital basis.
+
+    Parameters
+    ----------
+    rhf : scf.RHF
+        Converged RHF calculation object containing molecular orbitals
+        and electron integrals.
+
+    Returns
+    -------
+    float
+        FCI ground state energy in Hartree.
+
+    Notes
+    -----
+    FCI scales exponentially with system size and is only feasible
+    for small molecules (typically < 20 orbitals).
+    """
+    ci_solver = fci.FCI(rhf)
+    fci_energy, fci_vec = ci_solver.kernel()
+    return fci_energy
+
+
+def calc_qsci_energy(H, statevector):
+    """
+    Calculate Quantum Subspace Configuration Interaction (QSCI) energy.
+
+    Extracts the significant configurations from the statevector (based on
+    amplitude threshold), constructs the Hamiltonian in this reduced subspace,
+    and solves for the ground state energy. This provides a variational energy
+    estimate using the quantum-circuit-prepared subspace.
+
+    Parameters
+    ----------
+    H : scipy.sparse matrix
+        Full Hamiltonian matrix in the computational basis (Fock space).
+    statevector : circuit.Statevector
+        Quantum statevector with amplitudes for all basis configurations.
+        The `data` attribute contains the complex amplitude array.
+
+    Returns
+    -------
+    float
+        QSCI ground state energy in Hartree.
+
+    Notes
+    -----
+    - Configurations with |amplitude| < 1e-12 are filtered out
+    - For small subspaces (≤2 dimensions), uses dense eigenvalue solver
+    - For larger subspaces, uses sparse eigenvalue solver (eigsh)
+    - The QSCI energy is variational: E_QSCI ≥ E_FCI
+    """
+    idx = np.argwhere(np.abs(statevector.data) > 1e-12).ravel()
+    H_sub = H[np.ix_(idx, idx)]
+
+    # Handle small matrices where eigsh would fail
+    # This occurs when uhf = rhf so the statevector is a single determinant
+    if H_sub.shape[0] <= 2:
+        # Should equal HF energy but worth checking
+        eigenvalues, eigenvectors = eigh(H_sub.toarray())
+        E0 = eigenvalues[0]
+    else:
+        E0, psi0 = eigsh(H_sub, k=1, which='SA')
+        E0 = E0[0]
+
+    return E0
 
 
 def analyse_statevector(mol, rhf, uhf, statevector):
+    """
+    Analyze and compare properties of the quantum statevector.
+
+    Performs comprehensive analysis of the statevector including:
+    1. Configuration decomposition (bitstring representation)
+    2. Energy comparison (RHF, UHF, FCI, QSCI, statevector expectation)
+    3. Spin expectation values (S² operator)
+    4. Spin symmetry preservation checks
+    5. Energy with spin-symmetric subspace
+
+    Parameters
+    ----------
+    mol : gto.Mole
+        PySCF molecule object containing geometry and basis information.
+    rhf : scf.RHF
+        Converged RHF calculation object.
+    uhf : scf.UHF
+        Converged UHF calculation object (typically from symmetry breaking).
+    statevector : circuit.Statevector
+        Quantum statevector from circuit simulation, representing the
+        quantum state in the computational basis.
+
+    Prints
+    ------
+    - DataFrame of dominant configurations (bitstrings and amplitudes)
+    - Energy values from different methods (FCI, RHF, UHF, statevector)
+    - Spin expectation values (S²) from different methods
+    - Spin symmetry preservation check
+    - Number of configurations with spin symmetry
+    - QSCI energy in spin-symmetric subspace
+
+    Notes
+    -----
+    Bitstrings use the convention: '0' = occupied, '1' = unoccupied.
+    The first half of bits represent spin-up orbitals, second half spin-down.
+    """
     # Analyze statevector
     sv_abs = np.abs(statevector.data)
     idx_sorted = np.argsort(sv_abs)[::-1]
@@ -130,3 +297,7 @@ def analyse_statevector(mol, rhf, uhf, statevector):
 
     print("Configs with symmetry:", len(idx_symm))
     print("QSCI energy (symmetric):", E0_symm[0])
+
+
+if __name__ == "__main__":
+    main()
