@@ -155,61 +155,55 @@ def main():
     print_summary(data_dir, qc_results, conv_results, qsci_energy_final)
 
 
-def setup_data_directory():
+def build_h6_lattice(bond_length):
     """
-    Create and return the data directory for this script.
+    Build a triangular lattice of 6 hydrogen atoms.
 
-    Returns
-    -------
-    data_dir : Path
-        Directory path for saving output files.
-    """
-    script_name = Path(__file__).stem
-    data_dir = Path(__file__).parent / 'data' / script_name
-    data_dir.mkdir(parents=True, exist_ok=True)
-    return data_dir
-
-
-def run_quantum_chemistry_calculations(mol, rhf, bond_length):
-    """
-    Run UHF and FCI calculations and build Hamiltonian.
+    Creates a PySCF molecule object for 6 hydrogen atoms arranged in a
+    triangular lattice pattern. The atoms form two rows: the first row
+    has 3 atoms and the second row has 3 atoms, arranged such that each
+    atom in the second row sits between two atoms in the first row,
+    creating a triangular lattice structure.
 
     Parameters
     ----------
-    mol : gto.Mole
-        PySCF molecule object.
-    rhf : scf.RHF
-        Converged RHF calculation object.
     bond_length : float
-        Bond length in Angstroms.
+        Distance between adjacent hydrogen atoms in Angstroms.
 
     Returns
     -------
-    qc_results : QuantumChemistryResults
-        Container with all quantum chemistry calculation results.
+    mol : gto.Mole
+        PySCF molecule object representing the H6 triangular lattice with
+        the following properties:
+        - basis: 'sto-3g'
+        - charge: 0
+        - spin: 0 (singlet)
+        - 6 hydrogen atoms in triangular lattice configuration
     """
-    uhf = uhf_from_rhf(mol, rhf)
-    qc = circuit.rhf_uhf_orbital_rotation_circuit(mol, rhf, uhf)
-    sv = circuit.simulate(qc)
-    H = hamiltonian.hamiltonian_from_pyscf(mol, rhf)
-
-    # Verify orbital rotation worked
-    sv_energy = (sv.data.conj().T @ H @ sv.data).real
-    assert np.isclose(sv_energy, uhf.e_tot), "Orbital rotation verification failed"
-
-    fci_energy, n_fci_configs, fci_vec = calc_fci_energy(rhf)
-
-    return QuantumChemistryResults(
-        mol=mol,
-        rhf=rhf,
-        uhf=uhf,
-        sv=sv,
-        H=H,
-        fci_energy=fci_energy,
-        n_fci_configs=n_fci_configs,
-        fci_vec=fci_vec,
-        bond_length=bond_length
+    # Create triangular lattice: 3 atoms in first row, 3 in second row
+    # First row: atoms at x = 0, 1*bond_length, 2*bond_length
+    # Second row: atoms offset by bond_length/2 in x and sqrt(3)/2*bond_length in y
+    h = bond_length * np.sqrt(3) / 2
+    coords = [
+        # First row
+        (0.0 * bond_length, 0, 0),
+        (1.0 * bond_length, 0, 0),
+        (2.0 * bond_length, 0, 0),
+        (0.5 * bond_length, h, 0),
+        (1.5 * bond_length, h, 0),
+        (2.0 * bond_length, 2 * h, 0),
+    ]
+    geometry = '; '.join([f'H {x:.8f} {y:.8f} {z:.8f}' for x, y, z in coords])
+    mol = gto.Mole()
+    mol.build(
+        atom=geometry,
+        unit='Angstrom',
+        basis='sto-3g',
+        charge=0,
+        spin=0,
+        verbose=0,
     )
+    return mol
 
 
 def calculate_convergence_data(qc_results: QuantumChemistryResults):
@@ -279,166 +273,71 @@ def calculate_convergence_data(qc_results: QuantumChemistryResults):
     )
 
 
-def save_convergence_data(data_dir: Path, qc_results: QuantumChemistryResults,
-                          conv_results: ConvergenceResults):
+def calc_fci_energy(rhf):
     """
-    Save convergence data and summary statistics to CSV files.
+    Calculate Full Configuration Interaction (FCI) energy.
 
     Parameters
     ----------
-    data_dir : Path
-        Directory to save the CSV files.
-    qc_results : QuantumChemistryResults
-        Container with quantum chemistry calculation results.
-    conv_results : ConvergenceResults
-        Container with convergence analysis results.
+    rhf : scf.RHF
+        Converged RHF calculation object.
+
+    Returns
+    -------
+    fci_energy : float
+        FCI ground state energy in Hartree.
+    n_configs : int
+        Number of configurations in the FCI wavefunction.
+    fci_vec : np.ndarray
+        FCI wavefunction vector in full Fock space (length 2^(2*nmo)).
     """
-    # Save convergence data
-    conv_results.df.to_csv(data_dir / 'h6_qsci_convergence.csv', index=False)
+    ci_solver = fci.FCI(rhf)
+    fci_energy, fci_vec_ci = ci_solver.kernel()
 
-    # Save summary statistics
-    summary_data = {
-        'bond_length': qc_results.bond_length,
-        'rhf_energy': qc_results.rhf.e_tot,
-        'uhf_energy': qc_results.uhf.e_tot,
-        'fci_energy': qc_results.fci_energy,
-        'n_fci_configs': qc_results.n_fci_configs,
-        'n_configs_below_uhf': conv_results.n_configs_below_uhf if conv_results.n_configs_below_uhf else 'Never',
-        'n_configs_reach_fci': conv_results.n_configs_reach_fci if conv_results.n_configs_reach_fci else 'Never',
-        'max_subspace_size': conv_results.max_size,
-        'min_qsci_energy': conv_results.df['qsci_energy'].min(),
-        'energy_diff_to_fci': conv_results.df['qsci_energy'].min() - qc_results.fci_energy
-    }
-    summary_df = pd.DataFrame(list(summary_data.items()), columns=['quantity', 'value'])
-    summary_df.to_csv(data_dir / 'h6_summary.csv', index=False)
+    # Get electron counts
+    mol = rhf.mol
+    nelec = mol.nelec
+
+    # Convert from CI space to full Fock space
+    fci_vec = fci_to_fock_space(fci_vec_ci, mol, nelec)
+
+    # Count non-zero configurations in FCI wavefunction
+    n_configs = np.count_nonzero(np.abs(fci_vec) > 1e-10)
+
+    return fci_energy, n_configs, fci_vec
 
 
-def plot_energy_vs_samples(data_dir: Path, qc_results: QuantumChemistryResults,
-                           conv_results: ConvergenceResults):
+def calc_fci_subspace_energy(H, fci_vec, n_configs):
     """
-    Create and save energy vs mean sample number plot.
+    Calculate energy in subspace of n largest amplitude FCI configurations.
 
     Parameters
     ----------
-    data_dir : Path
-        Directory to save the plot.
-    qc_results : QuantumChemistryResults
-        Container with quantum chemistry calculation results.
-    conv_results : ConvergenceResults
-        Container with convergence analysis results.
+    H : scipy.sparse matrix
+        Full Hamiltonian matrix in the computational basis (Fock space).
+    fci_vec : np.ndarray
+        Full FCI wavefunction vector (flattened).
+    n_configs : int
+        Number of configurations to include in the subspace.
+
+    Returns
+    -------
+    E0 : float
+        Ground state energy in the FCI subspace in Hartree.
     """
-    sns.set_style("whitegrid")
-    fig, ax = plt.subplots(figsize=(12, 8))
+    # Get indices of n_configs largest amplitude FCI configurations
+    idx = np.argsort(np.abs(fci_vec))[-n_configs:]
+    H_sub = H[np.ix_(idx, idx)]
 
-    ax.semilogx(conv_results.df['mean_sample_number'], conv_results.df['qsci_energy'], 'o-',
-                label='QSCI (UHF-based selection)',
-                linewidth=2, markersize=4, color='purple')
+    # Handle small matrices where eigsh would fail
+    if H_sub.shape[0] <= 2:
+        eigenvalues = eigh(H_sub.toarray(), eigvals_only=True)
+        E0 = eigenvalues[0]
+    else:
+        E0 = eigsh(H_sub, k=1, which='SA', return_eigenvectors=False)
+        E0 = E0[0]
 
-    # Add horizontal reference lines
-    ax.axhline(y=qc_results.rhf.e_tot, color='blue', linestyle='--',
-               linewidth=2, label=f'RHF: {qc_results.rhf.e_tot:.6f} Ha')
-    ax.axhline(y=qc_results.uhf.e_tot, color='orange', linestyle='--',
-               linewidth=2, label=f'UHF: {qc_results.uhf.e_tot:.6f} Ha')
-    ax.axhline(y=qc_results.fci_energy, color='green', linestyle='--',
-               linewidth=2, label=f'FCI: {qc_results.fci_energy:.6f} Ha')
-
-    ax.set_xlabel('Mean Sample Number (log scale)', fontsize=12)
-    ax.set_ylabel('Energy (Hartree)', fontsize=12)
-    ax.set_title(
-        f'H$_6$ Triangular Lattice Simulation: Energy vs Mean Sample Number\nBond Length = {qc_results.bond_length:.2f} Å',
-        fontsize=14, fontweight='bold')
-    ax.legend(fontsize=10, loc='best')
-    ax.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(data_dir / 'h6_energy_vs_samples.png', dpi=300, bbox_inches='tight')
-    plt.show()
-
-
-def plot_convergence_comparison(data_dir: Path, qc_results: QuantumChemistryResults,
-                                conv_results: ConvergenceResults):
-    """
-    Create and save convergence comparison plot.
-
-    Parameters
-    ----------
-    data_dir : Path
-        Directory to save the plot.
-    qc_results : QuantumChemistryResults
-        Container with quantum chemistry calculation results.
-    conv_results : ConvergenceResults
-        Container with convergence analysis results.
-    """
-    sns.set_style("whitegrid")
-    fig, ax = plt.subplots(figsize=(12, 8))
-
-    # Plot QSCI energy vs subspace size
-    ax.plot(conv_results.df['subspace_size'], conv_results.df['qsci_energy'], 'o-',
-            label='QSCI (UHF-based selection)',
-            linewidth=2, markersize=4, color='purple')
-
-    # Plot FCI subspace energy vs subspace size
-    ax.plot(conv_results.df['subspace_size'], conv_results.df['fci_subspace_energy'], 's-',
-            label='FCI subspace (FCI-based selection)',
-            linewidth=2, markersize=4, color='darkgreen')
-
-    # Add horizontal reference lines
-    ax.axhline(y=qc_results.rhf.e_tot, color='blue', linestyle='--',
-               linewidth=2, label=f'RHF: {qc_results.rhf.e_tot:.6f} Ha')
-    ax.axhline(y=qc_results.uhf.e_tot, color='orange', linestyle='--',
-               linewidth=2, label=f'UHF: {qc_results.uhf.e_tot:.6f} Ha')
-    ax.axhline(y=qc_results.fci_energy, color='green', linestyle='--',
-               linewidth=2, label=f'FCI: {qc_results.fci_energy:.6f} Ha')
-
-    ax.set_xlabel('Subspace Size (Number of Configurations)', fontsize=12)
-    ax.set_ylabel('Energy (Hartree)', fontsize=12)
-    ax.set_title(f'H6 Triangular Lattice: Energy Convergence Comparison\nBond Length = {qc_results.bond_length:.2f} Å',
-                 fontsize=14, fontweight='bold')
-    ax.legend(fontsize=10, loc='best')
-    ax.grid(True, alpha=0.3)
-
-    plt.tight_layout()
-    plt.savefig(data_dir / 'h6_qsci_convergence.png', dpi=300, bbox_inches='tight')
-    plt.show()
-
-
-def print_summary(data_dir: Path, qc_results: QuantumChemistryResults,
-                 conv_results: ConvergenceResults, qsci_energy_final: float):
-    """
-    Print summary of results to console.
-
-    Parameters
-    ----------
-    data_dir : Path
-        Directory where data was saved.
-    qc_results : QuantumChemistryResults
-        Container with quantum chemistry calculation results.
-    conv_results : ConvergenceResults
-        Container with convergence analysis results.
-    qsci_energy_final : float
-        Final QSCI energy with max subspace.
-    """
-    print(f"\nReference Energies:")
-    print(f"  RHF: {qc_results.rhf.e_tot:.8f} Ha")
-    print(f"  UHF: {qc_results.uhf.e_tot:.8f} Ha")
-    print(f"  FCI: {qc_results.fci_energy:.8f} Ha")
-    print(f"  QSCI (max subspace): {qsci_energy_final:.8f} Ha")
-    print(f"\nFCI Solution:")
-    print(f"  Number of configurations: {qc_results.n_fci_configs}")
-    print(f"\nQSCI Convergence:")
-    print(f"  Max subspace size: {conv_results.max_size}")
-    print(f"  Min QSCI energy: {conv_results.df['qsci_energy'].min():.8f} Ha")
-    print(f"  Energy difference to FCI: {conv_results.df['qsci_energy'].min() - qc_results.fci_energy:.2e} Ha")
-    print(f"\nMilestones:")
-    print(f"  Configs to fall below UHF: {conv_results.n_configs_below_uhf if conv_results.n_configs_below_uhf else 'Never achieved'}")
-    print(f"  Configs to reach FCI (±{FCI_TOL:.0e} Ha): {conv_results.n_configs_reach_fci if conv_results.n_configs_reach_fci else 'Never achieved'}")
-    print(f"\nData saved to '{data_dir}' directory:")
-    print("  - h6_qsci_convergence.csv (full energy data)")
-    print("  - h6_summary.csv (summary statistics)")
-    print("  - h6_qsci_convergence.png (plot)")
-    print("  - h6_energy_vs_samples.png (energy vs mean sample number)")
-    print("  - statevector_coefficients.png (top 20 coefficients bar chart)")
-    print("  - statevector_coefficients_full.png (all significant coefficients)")
+    return E0
 
 
 def calc_qsci_energy_with_size(H, statevector, n_configs, return_vector=False):
@@ -488,37 +387,143 @@ def calc_qsci_energy_with_size(H, statevector, n_configs, return_vector=False):
     return E0
 
 
-def calc_fci_subspace_energy(H, fci_vec, n_configs):
+def fci_to_fock_space(fci_vec, mol, nelec):
     """
-    Calculate energy in subspace of n largest amplitude FCI configurations.
+    Convert PySCF FCI vector (CI space) to full Fock space vector.
+
+    PySCF's FCI vector only contains configurations with the correct number
+    of electrons. This function maps it to the full 2^n Fock space where n
+    is the number of spin orbitals.
 
     Parameters
     ----------
-    H : scipy.sparse matrix
-        Full Hamiltonian matrix in the computational basis (Fock space).
     fci_vec : np.ndarray
-        Full FCI wavefunction vector (flattened).
-    n_configs : int
-        Number of configurations to include in the subspace.
+        FCI wavefunction from PySCF (shape: n_alpha_configs x n_beta_configs).
+    mol : gto.Mole
+        PySCF molecule object.
+    nelec : tuple
+        (n_alpha, n_beta) electron counts.
 
     Returns
     -------
-    E0 : float
-        Ground state energy in the FCI subspace in Hartree.
+    fock_vec : np.ndarray
+        FCI wavefunction in full Fock space basis (length 2^(2*nmo)).
     """
-    # Get indices of n_configs largest amplitude FCI configurations
-    idx = np.argsort(np.abs(fci_vec))[-n_configs:]
-    H_sub = H[np.ix_(idx, idx)]
+    from pyscf.fci import cistring
 
-    # Handle small matrices where eigsh would fail
-    if H_sub.shape[0] <= 2:
-        eigenvalues = eigh(H_sub.toarray(), eigvals_only=True)
-        E0 = eigenvalues[0]
-    else:
-        E0 = eigsh(H_sub, k=1, which='SA', return_eigenvectors=False)
-        E0 = E0[0]
+    nmo = mol.nao  # number of spatial orbitals
+    n_alpha, n_beta = nelec
+    n_spin_orbitals = 2 * nmo
 
-    return E0
+    # Generate all alpha and beta string indices
+    alpha_strs = cistring.make_strings(range(nmo), n_alpha)
+    beta_strs = cistring.make_strings(range(nmo), n_beta)
+
+    # Initialize full Fock space vector (all 2^(2*nmo) configurations)
+    fock_vec = np.zeros(2**n_spin_orbitals, dtype=complex)
+
+    # Map FCI configurations to Fock space
+    # In BLOCK spin ordering: [α0..α(nmo-1), β0..β(nmo-1)]
+    fci_vec_flat = fci_vec.flatten()
+
+    for i_alpha, alpha_str in enumerate(alpha_strs):
+        for i_beta, beta_str in enumerate(beta_strs):
+            # Convert string representations to Fock space index
+            # alpha_str and beta_str are integers representing occupation patterns
+            fock_idx = (alpha_str << nmo) | beta_str
+            ci_idx = i_alpha * len(beta_strs) + i_beta
+            fock_vec[fock_idx] = fci_vec_flat[ci_idx]
+
+    return fock_vec
+
+
+def plot_convergence_comparison(data_dir: Path, qc_results: QuantumChemistryResults,
+                                conv_results: ConvergenceResults):
+    """
+    Create and save convergence comparison plot.
+
+    Parameters
+    ----------
+    data_dir : Path
+        Directory to save the plot.
+    qc_results : QuantumChemistryResults
+        Container with quantum chemistry calculation results.
+    conv_results : ConvergenceResults
+        Container with convergence analysis results.
+    """
+    sns.set_style("whitegrid")
+    fig, ax = plt.subplots(figsize=(12, 8))
+
+    # Plot QSCI energy vs subspace size
+    ax.plot(conv_results.df['subspace_size'], conv_results.df['qsci_energy'], 'o-',
+            label='QSCI (UHF-based selection)',
+            linewidth=2, markersize=4, color='purple')
+
+    # Plot FCI subspace energy vs subspace size
+    ax.plot(conv_results.df['subspace_size'], conv_results.df['fci_subspace_energy'], 's-',
+            label='FCI subspace (FCI-based selection)',
+            linewidth=2, markersize=4, color='darkgreen')
+
+    # Add horizontal reference lines
+    ax.axhline(y=qc_results.rhf.e_tot, color='blue', linestyle='--',
+               linewidth=2, label=f'RHF: {qc_results.rhf.e_tot:.6f} Ha')
+    ax.axhline(y=qc_results.uhf.e_tot, color='orange', linestyle='--',
+               linewidth=2, label=f'UHF: {qc_results.uhf.e_tot:.6f} Ha')
+    ax.axhline(y=qc_results.fci_energy, color='green', linestyle='--',
+               linewidth=2, label=f'FCI: {qc_results.fci_energy:.6f} Ha')
+
+    ax.set_xlabel('Subspace Size (Number of Configurations)', fontsize=12)
+    ax.set_ylabel('Energy (Hartree)', fontsize=12)
+    ax.set_title(f'H6 Triangular Lattice: Energy Convergence Comparison\nBond Length = {qc_results.bond_length:.2f} Å',
+                 fontsize=14, fontweight='bold')
+    ax.legend(fontsize=10, loc='best')
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(data_dir / 'h6_qsci_convergence.png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+
+def plot_energy_vs_samples(data_dir: Path, qc_results: QuantumChemistryResults,
+                           conv_results: ConvergenceResults):
+    """
+    Create and save energy vs mean sample number plot.
+
+    Parameters
+    ----------
+    data_dir : Path
+        Directory to save the plot.
+    qc_results : QuantumChemistryResults
+        Container with quantum chemistry calculation results.
+    conv_results : ConvergenceResults
+        Container with convergence analysis results.
+    """
+    sns.set_style("whitegrid")
+    fig, ax = plt.subplots(figsize=(12, 8))
+
+    ax.semilogx(conv_results.df['mean_sample_number'], conv_results.df['qsci_energy'], 'o-',
+                label='QSCI (UHF-based selection)',
+                linewidth=2, markersize=4, color='purple')
+
+    # Add horizontal reference lines
+    ax.axhline(y=qc_results.rhf.e_tot, color='blue', linestyle='--',
+               linewidth=2, label=f'RHF: {qc_results.rhf.e_tot:.6f} Ha')
+    ax.axhline(y=qc_results.uhf.e_tot, color='orange', linestyle='--',
+               linewidth=2, label=f'UHF: {qc_results.uhf.e_tot:.6f} Ha')
+    ax.axhline(y=qc_results.fci_energy, color='green', linestyle='--',
+               linewidth=2, label=f'FCI: {qc_results.fci_energy:.6f} Ha')
+
+    ax.set_xlabel('Mean Sample Number (log scale)', fontsize=12)
+    ax.set_ylabel('Energy (Hartree)', fontsize=12)
+    ax.set_title(
+        f'H$_6$ Triangular Lattice Simulation: Energy vs Mean Sample Number\nBond Length = {qc_results.bond_length:.2f} Å',
+        fontsize=14, fontweight='bold')
+    ax.legend(fontsize=10, loc='best')
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(data_dir / 'h6_energy_vs_samples.png', dpi=300, bbox_inches='tight')
+    plt.show()
 
 
 def plot_statevector_coefficients(qsci_vec, fci_vec, data_dir, n_top=20):
@@ -607,139 +612,134 @@ def plot_statevector_coefficients(qsci_vec, fci_vec, data_dir, n_top=20):
     print(f"  Overlap <FCI|QSCI>: {np.abs(np.vdot(fci_vec, qsci_vec)):.6f}")
 
 
-def build_h6_lattice(bond_length):
+def print_summary(data_dir: Path, qc_results: QuantumChemistryResults,
+                 conv_results: ConvergenceResults, qsci_energy_final: float):
     """
-    Build a triangular lattice of 6 hydrogen atoms.
-
-    Creates a PySCF molecule object for 6 hydrogen atoms arranged in a
-    triangular lattice pattern. The atoms form two rows: the first row
-    has 3 atoms and the second row has 3 atoms, arranged such that each
-    atom in the second row sits between two atoms in the first row,
-    creating a triangular lattice structure.
+    Print summary of results to console.
 
     Parameters
     ----------
-    bond_length : float
-        Distance between adjacent hydrogen atoms in Angstroms.
-
-    Returns
-    -------
-    mol : gto.Mole
-        PySCF molecule object representing the H6 triangular lattice with
-        the following properties:
-        - basis: 'sto-3g'
-        - charge: 0
-        - spin: 0 (singlet)
-        - 6 hydrogen atoms in triangular lattice configuration
+    data_dir : Path
+        Directory where data was saved.
+    qc_results : QuantumChemistryResults
+        Container with quantum chemistry calculation results.
+    conv_results : ConvergenceResults
+        Container with convergence analysis results.
+    qsci_energy_final : float
+        Final QSCI energy with max subspace.
     """
-    # Create triangular lattice: 3 atoms in first row, 3 in second row
-    # First row: atoms at x = 0, 1*bond_length, 2*bond_length
-    # Second row: atoms offset by bond_length/2 in x and sqrt(3)/2*bond_length in y
-    h = bond_length * np.sqrt(3) / 2
-    coords = [
-        # First row
-        (0.0 * bond_length, 0, 0),
-        (1.0 * bond_length, 0, 0),
-        (2.0 * bond_length, 0, 0),
-        (0.5 * bond_length, h, 0),
-        (1.5 * bond_length, h, 0),
-        (2.0 * bond_length, 2 * h, 0),
-    ]
-    geometry = '; '.join([f'H {x:.8f} {y:.8f} {z:.8f}' for x, y, z in coords])
-    mol = gto.Mole()
-    mol.build(
-        atom=geometry,
-        unit='Angstrom',
-        basis='sto-3g',
-        charge=0,
-        spin=0,
-        verbose=0,
-    )
-    return mol
+    print(f"\nReference Energies:")
+    print(f"  RHF: {qc_results.rhf.e_tot:.8f} Ha")
+    print(f"  UHF: {qc_results.uhf.e_tot:.8f} Ha")
+    print(f"  FCI: {qc_results.fci_energy:.8f} Ha")
+    print(f"  QSCI (max subspace): {qsci_energy_final:.8f} Ha")
+    print(f"\nFCI Solution:")
+    print(f"  Number of configurations: {qc_results.n_fci_configs}")
+    print(f"\nQSCI Convergence:")
+    print(f"  Max subspace size: {conv_results.max_size}")
+    print(f"  Min QSCI energy: {conv_results.df['qsci_energy'].min():.8f} Ha")
+    print(f"  Energy difference to FCI: {conv_results.df['qsci_energy'].min() - qc_results.fci_energy:.2e} Ha")
+    print(f"\nMilestones:")
+    print(f"  Configs to fall below UHF: {conv_results.n_configs_below_uhf if conv_results.n_configs_below_uhf else 'Never achieved'}")
+    print(f"  Configs to reach FCI (±{FCI_TOL:.0e} Ha): {conv_results.n_configs_reach_fci if conv_results.n_configs_reach_fci else 'Never achieved'}")
+    print(f"\nData saved to '{data_dir}' directory:")
+    print("  - h6_qsci_convergence.csv (full energy data)")
+    print("  - h6_summary.csv (summary statistics)")
+    print("  - h6_qsci_convergence.png (plot)")
+    print("  - h6_energy_vs_samples.png (energy vs mean sample number)")
+    print("  - statevector_coefficients.png (top 20 coefficients bar chart)")
+    print("  - statevector_coefficients_full.png (all significant coefficients)")
 
 
-def fci_to_fock_space(fci_vec, mol, nelec):
+def run_quantum_chemistry_calculations(mol, rhf, bond_length):
     """
-    Convert PySCF FCI vector (CI space) to full Fock space vector.
-
-    PySCF's FCI vector only contains configurations with the correct number
-    of electrons. This function maps it to the full 2^n Fock space where n
-    is the number of spin orbitals.
+    Run UHF and FCI calculations and build Hamiltonian.
 
     Parameters
     ----------
-    fci_vec : np.ndarray
-        FCI wavefunction from PySCF (shape: n_alpha_configs x n_beta_configs).
     mol : gto.Mole
         PySCF molecule object.
-    nelec : tuple
-        (n_alpha, n_beta) electron counts.
+    rhf : scf.RHF
+        Converged RHF calculation object.
+    bond_length : float
+        Bond length in Angstroms.
 
     Returns
     -------
-    fock_vec : np.ndarray
-        FCI wavefunction in full Fock space basis (length 2^(2*nmo)).
+    qc_results : QuantumChemistryResults
+        Container with all quantum chemistry calculation results.
     """
-    from pyscf.fci import cistring
+    uhf = uhf_from_rhf(mol, rhf)
+    qc = circuit.rhf_uhf_orbital_rotation_circuit(mol, rhf, uhf)
+    sv = circuit.simulate(qc)
+    H = hamiltonian.hamiltonian_from_pyscf(mol, rhf)
 
-    nmo = mol.nao  # number of spatial orbitals
-    n_alpha, n_beta = nelec
-    n_spin_orbitals = 2 * nmo
+    # Verify orbital rotation worked
+    sv_energy = (sv.data.conj().T @ H @ sv.data).real
+    assert np.isclose(sv_energy, uhf.e_tot), "Orbital rotation verification failed"
 
-    # Generate all alpha and beta string indices
-    alpha_strs = cistring.make_strings(range(nmo), n_alpha)
-    beta_strs = cistring.make_strings(range(nmo), n_beta)
+    fci_energy, n_fci_configs, fci_vec = calc_fci_energy(rhf)
 
-    # Initialize full Fock space vector (all 2^(2*nmo) configurations)
-    fock_vec = np.zeros(2**n_spin_orbitals, dtype=complex)
-
-    # Map FCI configurations to Fock space
-    # In BLOCK spin ordering: [α0..α(nmo-1), β0..β(nmo-1)]
-    fci_vec_flat = fci_vec.flatten()
-
-    for i_alpha, alpha_str in enumerate(alpha_strs):
-        for i_beta, beta_str in enumerate(beta_strs):
-            # Convert string representations to Fock space index
-            # alpha_str and beta_str are integers representing occupation patterns
-            fock_idx = (alpha_str << nmo) | beta_str
-            ci_idx = i_alpha * len(beta_strs) + i_beta
-            fock_vec[fock_idx] = fci_vec_flat[ci_idx]
-
-    return fock_vec
+    return QuantumChemistryResults(
+        mol=mol,
+        rhf=rhf,
+        uhf=uhf,
+        sv=sv,
+        H=H,
+        fci_energy=fci_energy,
+        n_fci_configs=n_fci_configs,
+        fci_vec=fci_vec,
+        bond_length=bond_length
+    )
 
 
-def calc_fci_energy(rhf):
+def save_convergence_data(data_dir: Path, qc_results: QuantumChemistryResults,
+                          conv_results: ConvergenceResults):
     """
-    Calculate Full Configuration Interaction (FCI) energy.
+    Save convergence data and summary statistics to CSV files.
 
     Parameters
     ----------
-    rhf : scf.RHF
-        Converged RHF calculation object.
+    data_dir : Path
+        Directory to save the CSV files.
+    qc_results : QuantumChemistryResults
+        Container with quantum chemistry calculation results.
+    conv_results : ConvergenceResults
+        Container with convergence analysis results.
+    """
+    # Save convergence data
+    conv_results.df.to_csv(data_dir / 'h6_qsci_convergence.csv', index=False)
+
+    # Save summary statistics
+    summary_data = {
+        'bond_length': qc_results.bond_length,
+        'rhf_energy': qc_results.rhf.e_tot,
+        'uhf_energy': qc_results.uhf.e_tot,
+        'fci_energy': qc_results.fci_energy,
+        'n_fci_configs': qc_results.n_fci_configs,
+        'n_configs_below_uhf': conv_results.n_configs_below_uhf if conv_results.n_configs_below_uhf else 'Never',
+        'n_configs_reach_fci': conv_results.n_configs_reach_fci if conv_results.n_configs_reach_fci else 'Never',
+        'max_subspace_size': conv_results.max_size,
+        'min_qsci_energy': conv_results.df['qsci_energy'].min(),
+        'energy_diff_to_fci': conv_results.df['qsci_energy'].min() - qc_results.fci_energy
+    }
+    summary_df = pd.DataFrame(list(summary_data.items()), columns=['quantity', 'value'])
+    summary_df.to_csv(data_dir / 'h6_summary.csv', index=False)
+
+
+def setup_data_directory():
+    """
+    Create and return the data directory for this script.
 
     Returns
     -------
-    fci_energy : float
-        FCI ground state energy in Hartree.
-    n_configs : int
-        Number of configurations in the FCI wavefunction.
-    fci_vec : np.ndarray
-        FCI wavefunction vector in full Fock space (length 2^(2*nmo)).
+    data_dir : Path
+        Directory path for saving output files.
     """
-    ci_solver = fci.FCI(rhf)
-    fci_energy, fci_vec_ci = ci_solver.kernel()
-
-    # Get electron counts
-    mol = rhf.mol
-    nelec = mol.nelec
-
-    # Convert from CI space to full Fock space
-    fci_vec = fci_to_fock_space(fci_vec_ci, mol, nelec)
-
-    # Count non-zero configurations in FCI wavefunction
-    n_configs = np.count_nonzero(np.abs(fci_vec) > 1e-10)
-
-    return fci_energy, n_configs, fci_vec
+    script_name = Path(__file__).stem
+    data_dir = Path(__file__).parent / 'data' / script_name
+    data_dir.mkdir(parents=True, exist_ok=True)
+    return data_dir
 
 
 if __name__ == "__main__":
