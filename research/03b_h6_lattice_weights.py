@@ -10,7 +10,7 @@ Overview
 For a fixed bond length (2.0 A), the script:
 1. Runs RHF, UHF, and FCI calculations using PySCF
 2. Constructs the UHF statevector via orbital rotation circuit
-3. Analyzes how QSCI energy converges to FCI by varying the number of
+3. Analyses how QSCI energy converges to FCI by varying the number of
    configurations included based on amplitude ranking from the UHF statevector
 
 The key insight is that configurations with large amplitudes in the UHF
@@ -73,16 +73,18 @@ Notes
 - Configuration selection based on absolute amplitude values
 """
 
+from pathlib import Path
+from dataclasses import dataclass
+from typing import Optional
+
 import numpy as np
+import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
 from pyscf import gto, scf, fci
 from scipy.linalg import eigh
 from scipy.sparse.linalg import eigsh
-import pandas as pd
-from pathlib import Path
-from dataclasses import dataclass
-from typing import Optional
+from qiskit.quantum_info import Statevector
 
 from sd_qsci.utils import uhf_from_rhf
 from sd_qsci import circuit, hamiltonian
@@ -98,7 +100,7 @@ class QuantumChemistryResults:
     mol: gto.Mole
     rhf: scf.RHF
     uhf: scf.UHF
-    sv: circuit.Statevector
+    sv: Statevector
     H: np.ndarray  # Hamiltonian matrix
     fci_energy: float
     n_fci_configs: int
@@ -125,7 +127,7 @@ def main():
     """
     # Setup
     data_dir = setup_data_directory()
-    bond_length = 2.0
+    bond_length = 3.0
     print(f"Running bond length: {bond_length:.2f} Angstrom")
 
     # Run quantum chemistry calculations
@@ -151,6 +153,7 @@ def main():
 
     # Print summary
     print_summary(data_dir, qc_results, conv_results, qsci_energy_final)
+
 
 def setup_data_directory():
     """
