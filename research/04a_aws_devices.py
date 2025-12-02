@@ -1,6 +1,7 @@
 from braket.aws import AwsSession
 import boto3
 
+# Regions NQCC has given access for 11/2025-01/2026
 regions = [
     'us-east-1',
     'us-west-1',
