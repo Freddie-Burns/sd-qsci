@@ -474,7 +474,7 @@ def plot_convergence_comparison(data_dir: Path, qc_results: QuantumChemistryResu
 
     ax.set_xlabel('Subspace Size (Number of Configurations)', fontsize=12)
     ax.set_ylabel('Energy (Hartree)', fontsize=12)
-    ax.set_title(f'H6 Triangular Lattice: Energy Convergence Comparison\nBond Length = {qc_results.bond_length:.2f} Å',
+    ax.set_title(f'H$_6$ Triangular Lattice: Energy Convergence Comparison\nBond Length = {qc_results.bond_length:.2f} Å',
                  fontsize=14, fontweight='bold')
     ax.legend(fontsize=10, loc='best')
     ax.grid(True, alpha=0.3)
