@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
-from pyscf import gto, fci
+from pyscf import gto, fci, scf
 from scipy.linalg import eigh
 from scipy.sparse.linalg import eigsh
 from qiskit.quantum_info import Statevector
@@ -44,8 +44,8 @@ class QuantumChemistryResults:
       bond_length: float | None
     """
     mol: gto.Mole
-    rhf: object
-    uhf: object
+    rhf: scf.RHF
+    uhf: scf.UHF
     sv: Statevector
     H: np.ndarray
     fci_energy: float
@@ -208,7 +208,7 @@ def fci_to_fock_space(fci_vec, mol: gto.Mole, nelec) -> np.ndarray:
     return fock_vec
 
 
-def run_quantum_chemistry_calculations(mol: gto.Mole, rhf, bond_length: Optional[float] = None) -> QuantumChemistryResults:
+def run_quantum_chemistry_calculations(mol: gto.Mole, rhf: scf.RHF, bond_length: Optional[float] = None) -> QuantumChemistryResults:
     """
     Run UHF, build orbital-rotation circuit, simulate statevector and construct Hamiltonian.
 
@@ -219,7 +219,8 @@ def run_quantum_chemistry_calculations(mol: gto.Mole, rhf, bond_length: Optional
     sv = circuit.simulate(qc)
     H = hamiltonian.hamiltonian_from_pyscf(mol, rhf)
 
-    sv_energy = (sv.data.conj().T @ H @ sv.data).real
+    # Use np.vdot for robust dot product across array shapes
+    sv_energy = np.vdot(sv.data, H.dot(sv.data)).real if hasattr(H, 'dot') else np.vdot(sv.data, H @ sv.data).real
     if not np.isclose(sv_energy, uhf.e_tot):
         raise RuntimeError("Orbital rotation verification failed: statevector energy != UHF energy")
 
@@ -414,4 +415,3 @@ __all__ = [
     'plot_convergence_comparison', 'plot_energy_vs_samples', 'plot_statevector_coefficients',
     'save_convergence_data', 'setup_data_directory'
 ]
-
