@@ -91,8 +91,8 @@ def main():
     Run H6 triangular lattice energy calculations and analyze QSCI convergence.
     """
     # Setup
-    data_dir = analysis.setup_data_directory()
-    bond_length = 3.0
+    data_dir = Path(__file__).parent / 'data' / '03c_h6_chain'
+    bond_length = 2.0
     print(f"Running bond length: {bond_length:.2f} Angstrom")
 
     # Run quantum chemistry calculations
@@ -130,9 +130,9 @@ def build_h6_lattice(bond_length):
         (0.0 * bond_length, 0, 0),
         (1.0 * bond_length, 0, 0),
         (2.0 * bond_length, 0, 0),
-        (0.5 * bond_length, h, 0),
-        (1.5 * bond_length, h, 0),
-        (2.0 * bond_length, 2 * h, 0),
+        (3.0 * bond_length, 0, 0),
+        (4.0 * bond_length, 0, 0),
+        (5.0 * bond_length, 0, 0),
     ]
     geometry = '; '.join([f'H {x:.8f} {y:.8f} {z:.8f}' for x, y, z in coords])
     mol = gto.Mole()

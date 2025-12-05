@@ -30,7 +30,8 @@ DEFAULT_FCI_TOL = 1e-6
 
 @dataclass
 class QuantumChemistryResults:
-    """Container for quantum chemistry calculation results.
+    """
+    Container for quantum chemistry calculation results.
 
     Fields:
       mol: PySCF molecule
@@ -63,23 +64,29 @@ class ConvergenceResults:
     n_configs_reach_fci: Optional[int]
 
 
-def calculate_convergence_data(qc_results: QuantumChemistryResults,
-                               sv_tol: float = DEFAULT_SV_TOL,
-                               fci_tol: float = DEFAULT_FCI_TOL) -> ConvergenceResults:
+def calculate_convergence_data(
+    qc_results: QuantumChemistryResults,
+    sv_tol: float = DEFAULT_SV_TOL,
+    fci_tol: float = DEFAULT_FCI_TOL,
+) -> ConvergenceResults:
     """
     Calculate QSCI and FCI subspace energies for varying subspace sizes.
 
     Parameters
     ----------
-    qc_results: QuantumChemistryResults
-    sv_tol: float
+    qc_results : QuantumChemistryResults
+        Quantum chemistry calculation results.
+    sv_tol : float, optional
         Threshold for considering statevector amplitudes as present.
-    fci_tol: float
+        Default is DEFAULT_SV_TOL.
+    fci_tol : float, optional
         Tolerance for considering a QSCI energy equal to FCI.
+        Default is DEFAULT_FCI_TOL.
 
     Returns
     -------
     ConvergenceResults
+        Container with convergence analysis results.
     """
     max_idx = np.argwhere(np.abs(qc_results.sv.data) > sv_tol).ravel()
     max_size = len(max_idx)
@@ -113,7 +120,7 @@ def calculate_convergence_data(qc_results: QuantumChemistryResults,
     df = pd.DataFrame({
         'subspace_size': subspace_sizes,
         'qsci_energy': qsci_energies,
- 'fci_subspace_energy': fci_subspace_energies,
+        'fci_subspace_energy': fci_subspace_energies,
         'mean_sample_number': mean_sample_numbers
     })
 
@@ -126,7 +133,21 @@ def calc_fci_energy(rhf, tol: float = 1e-10) -> Tuple[float, int, np.ndarray]:
     """
     Compute FCI ground state and map PySCF's CI vector into the full Fock space.
 
-    Returns (fci_energy, n_configs, fci_vec_full)
+    Parameters
+    ----------
+    rhf : scf.RHF
+        Restricted Hartree-Fock object.
+    tol : float, optional
+        Tolerance for considering an FCI amplitude as nonzero. Default is 1e-10.
+
+    Returns
+    -------
+    fci_energy : float
+        FCI ground state energy.
+    n_configs : int
+        Number of significant FCI configurations.
+    fci_vec : np.ndarray
+        Full Fock-space FCI vector.
     """
     ci_solver = fci.FCI(rhf)
     fci_energy, fci_vec_ci = ci_solver.kernel()
@@ -143,6 +164,20 @@ def calc_fci_energy(rhf, tol: float = 1e-10) -> Tuple[float, int, np.ndarray]:
 def calc_fci_subspace_energy(H, fci_vec, n_configs: int):
     """
     Energy of subspace spanned by the n_configs largest-amplitude FCI configurations.
+
+    Parameters
+    ----------
+    H : np.ndarray or sparse matrix
+        Full Hamiltonian matrix.
+    fci_vec : np.ndarray
+        Full Fock-space FCI vector.
+    n_configs : int
+        Number of configurations to include in the subspace.
+
+    Returns
+    -------
+    float
+        Ground state energy of the subspace.
     """
     idx = np.argsort(np.abs(fci_vec))[-n_configs:]
     H_sub = H[np.ix_(idx, idx)]
@@ -157,10 +192,38 @@ def calc_fci_subspace_energy(H, fci_vec, n_configs: int):
     return E0
 
 
-def calc_qsci_energy_with_size(H, statevector: Statevector, n_configs: int, return_vector: bool = False):
+def calc_qsci_energy_with_size(
+    H,
+    statevector: Statevector,
+    n_configs: int,
+    return_vector: bool = False,
+):
     """
-    Compute QSCI energy by diagonalizing Hamiltonian restricted to the largest n_configs
-    components of the provided statevector.
+    Compute QSCI energy by diagonalizing Hamiltonian in a subspace.
+
+    Diagonalizes the Hamiltonian restricted to the largest n_configs components
+    of the provided statevector.
+
+    Parameters
+    ----------
+    H : np.ndarray or sparse matrix
+        Full Hamiltonian matrix.
+    statevector : Statevector
+        Quantum statevector from circuit simulation.
+    n_configs : int
+        Number of configurations (largest amplitudes) to include in the subspace.
+    return_vector : bool, optional
+        If True, also return the full-space vector and configuration indices.
+        Default is False.
+
+    Returns
+    -------
+    float
+        Ground state energy of the subspace.
+    np.ndarray, optional
+        Full-space statevector (returned only if return_vector is True).
+    np.ndarray, optional
+        Indices of configurations in the subspace (returned only if return_vector is True).
     """
     idx = np.argsort(np.abs(statevector.data))[-n_configs:]
     H_sub = H[np.ix_(idx, idx)]
@@ -184,7 +247,24 @@ def calc_qsci_energy_with_size(H, statevector: Statevector, n_configs: int, retu
 
 def fci_to_fock_space(fci_vec, mol: gto.Mole, nelec) -> np.ndarray:
     """
-    Map PySCF's CI vector into the full Fock space vector (BLOCK spin ordering).
+    Map PySCF's CI vector into the full Fock space vector.
+
+    Converts PySCF's restricted CI vector to a full Fock-space representation
+    using BLOCK spin ordering.
+
+    Parameters
+    ----------
+    fci_vec : np.ndarray
+        FCI vector from PySCF.
+    mol : gto.Mole
+        PySCF molecule object.
+    nelec : tuple
+        Tuple of (n_alpha, n_beta) electron counts.
+
+    Returns
+    -------
+    np.ndarray
+        Full Fock-space FCI vector.
     """
     from pyscf.fci import cistring
 
@@ -210,9 +290,29 @@ def fci_to_fock_space(fci_vec, mol: gto.Mole, nelec) -> np.ndarray:
 
 def run_quantum_chemistry_calculations(mol: gto.Mole, rhf: scf.RHF, bond_length: Optional[float] = None) -> QuantumChemistryResults:
     """
-    Run UHF, build orbital-rotation circuit, simulate statevector and construct Hamiltonian.
+    Run complete quantum chemistry calculations and circuit simulation.
 
-    Returns QuantumChemistryResults.
+    Performs UHF calculation, builds orbital-rotation circuit, simulates the
+    statevector, and constructs the full Hamiltonian.
+
+    Parameters
+    ----------
+    mol : gto.Mole
+        PySCF molecule object.
+    rhf : scf.RHF
+        Restricted Hartree-Fock object.
+    bond_length : float, optional
+        Bond length for reference. Default is None.
+
+    Returns
+    -------
+    QuantumChemistryResults
+        Container with all quantum chemistry calculation results.
+
+    Raises
+    ------
+    RuntimeError
+        If orbital rotation verification fails (statevector energy != UHF energy).
     """
     uhf = uhf_from_rhf(mol, rhf)
     qc = circuit.rhf_uhf_orbital_rotation_circuit(mol, rhf, uhf)
@@ -239,9 +339,29 @@ def run_quantum_chemistry_calculations(mol: gto.Mole, rhf: scf.RHF, bond_length:
     )
 
 
-def plot_convergence_comparison(data_dir: Path, qc_results: QuantumChemistryResults,
-                                conv_results: ConvergenceResults, title_prefix: Optional[str] = None):
-    """Create and save convergence comparison plot as PNG in data_dir."""
+def plot_convergence_comparison(
+    data_dir: Path,
+    qc_results: QuantumChemistryResults,
+    conv_results: ConvergenceResults,
+    title_prefix: Optional[str] = None,
+):
+    """
+    Create and save convergence comparison plot.
+
+    Plots QSCI and FCI subspace energies against subspace size, comparing
+    with RHF, UHF, and FCI reference energies.
+
+    Parameters
+    ----------
+    data_dir : Path
+        Directory to save the PNG file.
+    qc_results : QuantumChemistryResults
+        Quantum chemistry calculation results.
+    conv_results : ConvergenceResults
+        Convergence analysis results.
+    title_prefix : str, optional
+        Prefix to add to the plot title. Default is None.
+    """
     sns.set_style("whitegrid")
     fig, ax = plt.subplots(figsize=(12, 8))
 
@@ -275,9 +395,29 @@ def plot_convergence_comparison(data_dir: Path, qc_results: QuantumChemistryResu
     plt.close(fig)
 
 
-def plot_energy_vs_samples(data_dir: Path, qc_results: QuantumChemistryResults,
-                           conv_results: ConvergenceResults, title_prefix: Optional[str] = None):
-    """Create and save energy vs mean-sample-number plot."""
+def plot_energy_vs_samples(
+    data_dir: Path,
+    qc_results: QuantumChemistryResults,
+    conv_results: ConvergenceResults,
+    title_prefix: Optional[str] = None,
+):
+    """
+    Create and save energy vs mean-sample-number plot.
+
+    Plots QSCI energy on a semilog scale against the mean sample number required
+    for each subspace size.
+
+    Parameters
+    ----------
+    data_dir : Path
+        Directory to save the PNG file.
+    qc_results : QuantumChemistryResults
+        Quantum chemistry calculation results.
+    conv_results : ConvergenceResults
+        Convergence analysis results.
+    title_prefix : str, optional
+        Prefix to add to the plot title. Default is None.
+    """
     sns.set_style("whitegrid")
     fig, ax = plt.subplots(figsize=(12, 8))
 
@@ -308,8 +448,39 @@ def plot_energy_vs_samples(data_dir: Path, qc_results: QuantumChemistryResults,
     plt.close(fig)
 
 
-def plot_statevector_coefficients(qsci_vec: np.ndarray, fci_vec: np.ndarray, data_dir: Path, n_top: int = 20):
-    """Plot comparison of coefficients and save two PNG files."""
+def plot_statevector_coefficients(
+    qsci_vec: np.ndarray,
+    fci_vec: np.ndarray,
+    data_dir: Path,
+    n_top: int = 20,
+):
+    """
+    Plot comparison of QSCI and FCI statevector coefficients.
+
+    Creates two plots: one showing the top n_top configurations as a bar chart,
+    and another showing all significant configurations on a log scale.
+
+    Parameters
+    ----------
+    qsci_vec : np.ndarray
+        QSCI statevector.
+    fci_vec : np.ndarray
+        FCI statevector.
+    data_dir : Path
+        Directory to save the PNG files.
+    n_top : int, optional
+        Number of top configurations to show in the first plot. Default is 20.
+
+    Returns
+    -------
+    dict
+        Dictionary with statistics:
+        - 'n_significant_fci': Number of significant FCI configurations
+        - 'n_significant_qsci': Number of significant QSCI configurations
+        - 'max_fci_coef': Maximum FCI coefficient magnitude
+        - 'max_qsci_coef': Maximum QSCI coefficient magnitude
+        - 'overlap': Overlap between FCI and QSCI vectors
+    """
     fci_abs = np.abs(fci_vec)
     top_indices = np.argsort(fci_abs)[-n_top:][::-1]
 
@@ -377,8 +548,26 @@ def plot_statevector_coefficients(qsci_vec: np.ndarray, fci_vec: np.ndarray, dat
     return stats
 
 
-def save_convergence_data(data_dir: Path, qc_results: QuantumChemistryResults, conv_results: ConvergenceResults):
-    """Save convergence dataframe and a small summary CSV."""
+def save_convergence_data(
+    data_dir: Path,
+    qc_results: QuantumChemistryResults,
+    conv_results: ConvergenceResults,
+):
+    """
+    Save convergence data and summary to CSV files.
+
+    Saves the convergence dataframe to 'h6_qsci_convergence.csv' and a
+    summary of key quantities to 'h6_summary.csv'.
+
+    Parameters
+    ----------
+    data_dir : Path
+        Directory to save the CSV files.
+    qc_results : QuantumChemistryResults
+        Quantum chemistry calculation results.
+    conv_results : ConvergenceResults
+        Convergence analysis results.
+    """
     Path(data_dir).mkdir(parents=True, exist_ok=True)
     conv_results.df.to_csv(Path(data_dir) / 'h6_qsci_convergence.csv', index=False)
 
@@ -399,7 +588,23 @@ def save_convergence_data(data_dir: Path, qc_results: QuantumChemistryResults, c
 
 
 def setup_data_directory(base: Optional[Path] = None) -> Path:
-    """Create and return a data directory adjacent to this module (or under base if given)."""
+    """
+    Create and return a data directory.
+
+    Creates a data directory adjacent to this module, or under the specified
+    base directory if provided.
+
+    Parameters
+    ----------
+    base : Path, optional
+        Base directory for data storage. If None, uses a directory relative
+        to this module. Default is None.
+
+    Returns
+    -------
+    Path
+        Path to the data directory (created if it doesn't exist).
+    """
     if base is None:
         data_dir = Path(__file__).parent.parent / 'research_data' / Path(__file__).stem
     else:
@@ -409,9 +614,17 @@ def setup_data_directory(base: Optional[Path] = None) -> Path:
 
 
 __all__ = [
-    'QuantumChemistryResults', 'ConvergenceResults', 'calculate_convergence_data',
-    'calc_fci_energy', 'calc_fci_subspace_energy', 'calc_qsci_energy_with_size',
-    'fci_to_fock_space', 'run_quantum_chemistry_calculations',
-    'plot_convergence_comparison', 'plot_energy_vs_samples', 'plot_statevector_coefficients',
-    'save_convergence_data', 'setup_data_directory'
+    'QuantumChemistryResults',
+    'ConvergenceResults',
+    'calculate_convergence_data',
+    'calc_fci_energy',
+    'calc_fci_subspace_energy',
+    'calc_qsci_energy_with_size',
+    'fci_to_fock_space',
+    'run_quantum_chemistry_calculations',
+    'plot_convergence_comparison',
+    'plot_energy_vs_samples',
+    'plot_statevector_coefficients',
+    'save_convergence_data',
+    'setup_data_directory',
 ]
