@@ -1,0 +1,2 @@
+basis,n_orbitals,bond_length,rhf_energy,uhf_energy,fci_energy,n_fci_configs,max_subspace_size,min_qsci_energy,energy_diff_to_fci,n_configs_below_uhf,n_configs_reach_fci
+3-21g,6,2.0,-1.0435308642827854,-1.0612288137260348,-1.1056091788224438,20,33,-1.1042832957496758,0.0013258830727680415,4,Never

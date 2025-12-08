@@ -1,0 +1,2 @@
+basis,n_orbitals,bond_length,rhf_energy,uhf_energy,fci_energy,n_fci_configs,max_subspace_size,min_qsci_energy,energy_diff_to_fci,n_configs_below_uhf,n_configs_reach_fci
+sto-3g,3,2.0,-0.9557494651389878,-0.9990890121059729,-1.0497564809410092,5,9,-1.0497564809410118,-2.6645352591003757e-15,5,9

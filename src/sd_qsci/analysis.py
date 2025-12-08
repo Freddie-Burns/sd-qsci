@@ -129,7 +129,7 @@ def calculate_convergence_data(
                               n_configs_reach_fci=n_configs_reach_fci)
 
 
-def calc_fci_energy(rhf, tol: float = 1e-10) -> Tuple[float, int, np.ndarray]:
+def calc_fci_energy(rhf, tol: float = 1e-10) -> tuple[float, int, np.ndarray]:
     """
     Compute FCI ground state and map PySCF's CI vector into the full Fock space.
 
@@ -288,7 +288,11 @@ def fci_to_fock_space(fci_vec, mol: gto.Mole, nelec) -> np.ndarray:
     return fock_vec
 
 
-def run_quantum_chemistry_calculations(mol: gto.Mole, rhf: scf.RHF, bond_length: Optional[float] = None) -> QuantumChemistryResults:
+def run_quantum_chemistry_calculations(
+        mol: gto.Mole,
+        rhf: scf.RHF,
+        bond_length: Optional[float],
+) -> QuantumChemistryResults:
     """
     Run complete quantum chemistry calculations and circuit simulation.
 

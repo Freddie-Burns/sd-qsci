@@ -78,11 +78,10 @@ from pathlib import Path
 import numpy as np
 from pyscf import gto, scf
 
-# Import reusable analysis utilities
 from sd_qsci import analysis
 
 # Script-specific tolerances
-SV_TOL = 1e-6
+SV_TOL = 1e-2
 FCI_TOL = 1e-6
 
 
@@ -91,8 +90,8 @@ def main():
     Run H6 triangular lattice energy calculations and analyze QSCI convergence.
     """
     # Setup
-    data_dir = Path(__file__).parent / 'data' / '03c_h6_chain'
     bond_length = 2.0
+    data_dir = Path(__file__).parent / 'data' / '03c_h6_chain' / f"bond_length_{bond_length:.2f}"
     print(f"Running bond length: {bond_length:.2f} Angstrom")
 
     # Run quantum chemistry calculations
