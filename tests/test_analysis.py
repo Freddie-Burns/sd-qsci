@@ -2,10 +2,15 @@ import sys
 import types
 import importlib
 import numpy as np
+import pytest
 
 
-def _insert_stub_modules():
-    """Insert lightweight stubs for pyscf and qiskit submodules used by sd_qsci.analysis."""
+@pytest.fixture
+def _insert_stub_modules(monkeypatch):
+    """
+    Scoped stub modules for pyscf and qiskit using pytest.monkeypatch.
+    This prevents polluting sys.modules across the full test session.
+    """
     # Stub pyscf.gto and pyscf.fci
     pyscf_mod = types.ModuleType('pyscf')
     gto_mod = types.ModuleType('pyscf.gto')
@@ -36,9 +41,9 @@ def _insert_stub_modules():
     pyscf_mod.gto = gto_mod
     pyscf_mod.fci = fci_mod
 
-    sys.modules['pyscf'] = pyscf_mod
-    sys.modules['pyscf.gto'] = gto_mod
-    sys.modules['pyscf.fci'] = fci_mod
+    monkeypatch.setitem(sys.modules, 'pyscf', pyscf_mod)
+    monkeypatch.setitem(sys.modules, 'pyscf.gto', gto_mod)
+    monkeypatch.setitem(sys.modules, 'pyscf.fci', fci_mod)
 
     # Stub qiskit.quantum_info.Statevector
     qiskit_mod = types.ModuleType('qiskit')
@@ -56,13 +61,12 @@ def _insert_stub_modules():
     qi_mod.Statevector = Statevector
     qiskit_mod.quantum_info = qi_mod
 
-    sys.modules['qiskit'] = qiskit_mod
-    sys.modules['qiskit.quantum_info'] = qi_mod
+    monkeypatch.setitem(sys.modules, 'qiskit', qiskit_mod)
+    monkeypatch.setitem(sys.modules, 'qiskit.quantum_info', qi_mod)
 
 
-def test_calc_qsci_energy_with_size_small_matrix():
+def test_calc_qsci_energy_with_size_small_matrix(_insert_stub_modules):
     """Test calc_qsci_energy_with_size against direct diagonalization of submatrix."""
-    _insert_stub_modules()
 
     # Import the module after stubbing
     analysis = importlib.import_module('sd_qsci.analysis')
@@ -91,9 +95,8 @@ def test_calc_qsci_energy_with_size_small_matrix():
     assert set(nz) == set(top_idx)
 
 
-def test_calc_fci_subspace_energy_small_matrix():
+def test_calc_fci_subspace_energy_small_matrix(_insert_stub_modules):
     """Test calc_fci_subspace_energy against direct diagonalization of submatrix."""
-    _insert_stub_modules()
     analysis = importlib.import_module('sd_qsci.analysis')
     importlib.reload(analysis)
 

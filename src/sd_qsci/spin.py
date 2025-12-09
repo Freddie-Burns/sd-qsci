@@ -2,13 +2,11 @@ import numpy as np
 from scipy.sparse import csr_matrix, kron, identity
 from scipy.sparse import csc_matrix
 
-
 # ----- Pauli / ladder matrices (sparse) -----
 I2  = csr_matrix(np.eye(2))
 Z   = csr_matrix(np.array([[1, 0], [0,-1]], dtype=complex))
 Sp  = csr_matrix(np.array([[0, 1], [0, 0]], dtype=complex))   # sigma^+
 Sm  = csr_matrix(np.array([[0, 0], [1, 0]], dtype=complex))   # sigma^-
-
 
 def jw_creation(n_modes: int, j: int) -> csc_matrix:
     """
@@ -43,7 +41,6 @@ def jw_creation(n_modes: int, j: int) -> csc_matrix:
         op = fac if op is None else kron(op, fac, format="csr")
     return op.tocsc()
 
-
 def jw_annihilation(n_modes: int, j: int) -> csc_matrix:
     """
     Construct the Jordan-Wigner annihilation operator for a given mode.
@@ -77,7 +74,6 @@ def jw_annihilation(n_modes: int, j: int) -> csc_matrix:
         op = fac if op is None else kron(op, fac, format="csr")
     return op.tocsc()
 
-
 def number_op(n_modes: int, j: int) -> csc_matrix:
     """
     Construct the number operator for a given mode.
@@ -106,7 +102,6 @@ def number_op(n_modes: int, j: int) -> csc_matrix:
     a_dag = jw_creation(n_modes, j)
     a     = jw_annihilation(n_modes, j)
     return (a_dag @ a).tocsc()
-
 
 # ---------- Total spin operators ----------
 def spin_ops(n_spatial_orbs: int):
@@ -140,7 +135,7 @@ def spin_ops(n_spatial_orbs: int):
     These operators satisfy the angular momentum commutation relations:
     [S_+, S_-] = 2*S_z
     [S_z, S_±] = ±S_±
-
+    
     They can be combined to form S_x and S_y via:
     S_x = (S_+ + S_-) / 2
     S_y = (S_+ - S_-) / (2i)
@@ -174,7 +169,6 @@ def spin_ops(n_spatial_orbs: int):
 
     return Sz.tocsc(), Splus.tocsc(), Sminus.tocsc()
 
-
 def total_spin_S2(n_spatial_orbs: int) -> csc_matrix:
     """
     Construct the total spin operator S^2.
@@ -204,12 +198,10 @@ def total_spin_S2(n_spatial_orbs: int) -> csc_matrix:
     Sz, Splus, Sminus = spin_ops(n_spatial_orbs)
     return (Sz @ Sz + 0.5 * (Splus @ Sminus + Sminus @ Splus)).tocsc()
 
-
 # ---------- Utilities ----------
 def expectation(op: csc_matrix, psi: np.ndarray) -> complex:
     """
     Compute the expectation value of an operator with respect to a state.
-
     Calculates <psi|op|psi> for a given operator and state vector.
     The state vector is normalized internally before computing.
 
@@ -231,7 +223,6 @@ def expectation(op: csc_matrix, psi: np.ndarray) -> complex:
         raise ValueError("State vector has zero norm.")
     psi_norm = psi / np.sqrt(norm)
     return np.vdot(psi_norm, op @ psi_norm)
-
 
 # ---------- Example usage ----------
 if __name__ == "__main__":
