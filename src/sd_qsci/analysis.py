@@ -8,7 +8,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Tuple
+from math import log2
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -20,7 +21,7 @@ from scipy.sparse.linalg import eigsh
 from qiskit.quantum_info import Statevector
 
 from sd_qsci.utils import uhf_from_rhf
-from sd_qsci import circuit, hamiltonian
+from sd_qsci import circuit, hamiltonian, spin
 
 
 # Defaults for tolerances (can be overridden by callers)
@@ -43,6 +44,7 @@ class QuantumChemistryResults:
       n_fci_configs: int
       fci_vec: np.ndarray (full Fock-space FCI vector)
       bond_length: float | None
+      spin_symm_amp: np.ndarray | None (spin-symmetric amplitudes)
     """
     mol: gto.Mole
     rhf: scf.RHF
@@ -52,7 +54,8 @@ class QuantumChemistryResults:
     fci_energy: float
     n_fci_configs: int
     fci_vec: np.ndarray
-    bond_length: Optional[float]
+    bond_length: Optional[float] = None
+    spin_symm_amp: Optional[np.ndarray] = None
 
 
 @dataclass
@@ -68,6 +71,7 @@ def calculate_convergence_data(
     qc_results: QuantumChemistryResults,
     sv_tol: float = DEFAULT_SV_TOL,
     fci_tol: float = DEFAULT_FCI_TOL,
+    spin_symm: bool = False,
 ) -> ConvergenceResults:
     """
     Calculate QSCI and FCI subspace energies for varying subspace sizes.
@@ -99,15 +103,23 @@ def calculate_convergence_data(
     n_configs_below_uhf = None
     n_configs_reach_fci = None
 
+    print("sv norm:", np.linalg.norm(qc_results.sv.data))
+    print("spin symm amp norm:", np.linalg.norm(qc_results.spin_symm_amp))
+
+    if spin_symm:
+        data = qc_results.spin_symm_amp
+    else:
+        data = qc_results.sv.data
+
     for size in subspace_sizes:
-        energy = calc_qsci_energy_with_size(qc_results.H, qc_results.sv, size)
+        energy = calc_qsci_energy_with_size(qc_results.H, data, size)
         qsci_energies.append(energy)
 
         fci_sub_energy = calc_fci_subspace_energy(qc_results.H, qc_results.fci_vec, size)
         fci_subspace_energies.append(fci_sub_energy)
 
-        idx = np.argsort(np.abs(qc_results.sv.data))[-size:]
-        min_coeff = np.min(np.abs(qc_results.sv.data[idx]))
+        idx = np.argsort(np.abs(data))[-size:]
+        min_coeff = np.min(np.abs(data[idx]))
         mean_sample_number = 1.0 / (min_coeff ** 2)
         mean_sample_numbers.append(mean_sample_number)
 
@@ -124,9 +136,12 @@ def calculate_convergence_data(
         'mean_sample_number': mean_sample_numbers
     })
 
-    return ConvergenceResults(df=df, max_size=max_size,
-                              n_configs_below_uhf=n_configs_below_uhf,
-                              n_configs_reach_fci=n_configs_reach_fci)
+    return ConvergenceResults(
+        df=df,
+        max_size=max_size,
+        n_configs_below_uhf=n_configs_below_uhf,
+        n_configs_reach_fci=n_configs_reach_fci,
+    )
 
 
 def calc_fci_energy(rhf, tol: float = 1e-10) -> tuple[float, int, np.ndarray]:
@@ -194,22 +209,23 @@ def calc_fci_subspace_energy(H, fci_vec, n_configs: int):
 
 def calc_qsci_energy_with_size(
     H,
-    statevector: Statevector,
+    data: np.ndarray,
     n_configs: int,
     return_vector: bool = False,
+    spin_symmetry: bool = False,
 ):
     """
-    Compute QSCI energy by diagonalizing Hamiltonian in a subspace.
+    Compute QSCI energy by diagonalising Hamiltonian in a subspace.
 
-    Diagonalizes the Hamiltonian restricted to the largest n_configs components
+    Diagonalises the Hamiltonian restricted to the largest n_configs components
     of the provided statevector.
 
     Parameters
     ----------
     H : np.ndarray or sparse matrix
         Full Hamiltonian matrix.
-    statevector : Statevector
-        Quantum statevector from circuit simulation.
+    data : np.ndarray
+        Quantum statevector data from circuit simulation.
     n_configs : int
         Number of configurations (largest amplitudes) to include in the subspace.
     return_vector : bool, optional
@@ -225,7 +241,13 @@ def calc_qsci_energy_with_size(
     np.ndarray, optional
         Indices of configurations in the subspace (returned only if return_vector is True).
     """
-    idx = np.argsort(np.abs(statevector.data))[-n_configs:]
+    # n configs ordered by highest amplitude first
+    idx = np.argsort(np.abs(data))[-n_configs:][::-1]
+
+    if spin_symmetry:
+        n_bits = int(log2(len(data)))
+        idx = spin_symm_indices(idx, n_bits)[:n_configs]
+
     H_sub = H[np.ix_(idx, idx)]
 
     if H_sub.shape[0] <= 2:
@@ -238,7 +260,7 @@ def calc_qsci_energy_with_size(
         psi0 = vecs[:, 0]
 
     if return_vector:
-        psi0_full = np.zeros(statevector.data.shape, dtype=complex)
+        psi0_full = np.zeros(data.shape, dtype=complex)
         psi0_full[idx] = psi0
         return E0, psi0_full, idx
 
@@ -321,6 +343,7 @@ def run_quantum_chemistry_calculations(
     uhf = uhf_from_rhf(mol, rhf)
     qc = circuit.rhf_uhf_orbital_rotation_circuit(mol, rhf, uhf)
     sv = circuit.simulate(qc)
+    spin_symm_amp = spin_symm_amplitudes(sv.data)
     H = hamiltonian.hamiltonian_from_pyscf(mol, rhf)
 
     # Use np.vdot for robust dot product across array shapes
@@ -339,7 +362,8 @@ def run_quantum_chemistry_calculations(
         fci_energy=fci_energy,
         n_fci_configs=n_fci_configs,
         fci_vec=fci_vec,
-        bond_length=bond_length
+        bond_length=bond_length,
+        spin_symm_amp=spin_symm_amp,
     )
 
 
@@ -615,6 +639,32 @@ def setup_data_directory(base: Optional[Path] = None) -> Path:
         data_dir = Path(base)
     data_dir.mkdir(parents=True, exist_ok=True)
     return data_dir
+
+
+def spin_symm_indices(idx, n_bits):
+    new_indices = []
+    bitstring = bin(idx)[2:].zfill(n_bits)
+    bitstrings = spin.spin_symmetric_configs(bitstring)
+    for bs in bitstrings:
+        new_indices.append(int(bs, 2))
+    return new_indices
+
+
+def spin_symm_amplitudes(sv_data: np.ndarray) -> np.ndarray:
+    """
+    Make amplitudes equal to largest for all spin-symmetric configurations.
+    """
+    sv_data_new = sv_data.copy()
+    calculated_indices = set()
+    indices = np.argsort(np.abs(sv_data_new))[::-1]
+    n_bits = int(np.log2(sv_data_new.size))
+    for i in indices:
+        if i not in calculated_indices:
+            symm_indices = spin_symm_indices(i, n_bits)
+            for j in symm_indices:
+                calculated_indices.add(j)
+                sv_data_new[j] = sv_data[i]
+    return sv_data_new
 
 
 __all__ = [

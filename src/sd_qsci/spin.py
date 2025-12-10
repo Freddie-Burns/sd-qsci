@@ -1,12 +1,16 @@
+import itertools
+
 import numpy as np
 from scipy.sparse import csr_matrix, kron, identity
 from scipy.sparse import csc_matrix
+
 
 # ----- Pauli / ladder matrices (sparse) -----
 I2  = csr_matrix(np.eye(2))
 Z   = csr_matrix(np.array([[1, 0], [0,-1]], dtype=complex))
 Sp  = csr_matrix(np.array([[0, 1], [0, 0]], dtype=complex))   # sigma^+
 Sm  = csr_matrix(np.array([[0, 0], [1, 0]], dtype=complex))   # sigma^-
+
 
 def jw_creation(n_modes: int, j: int) -> csc_matrix:
     """
@@ -74,6 +78,7 @@ def jw_annihilation(n_modes: int, j: int) -> csc_matrix:
         op = fac if op is None else kron(op, fac, format="csr")
     return op.tocsc()
 
+
 def number_op(n_modes: int, j: int) -> csc_matrix:
     """
     Construct the number operator for a given mode.
@@ -102,6 +107,93 @@ def number_op(n_modes: int, j: int) -> csc_matrix:
     a_dag = jw_creation(n_modes, j)
     a     = jw_annihilation(n_modes, j)
     return (a_dag @ a).tocsc()
+
+
+def spin_symmetric_configs(config):
+    """
+    Generate all spin-symmetric configurations from a given bitstring.
+
+    Takes a bitstring representing a fermionic occupation configuration in
+    RHF ordering (alpha orbitals followed by beta orbitals) and generates
+    all spin-symmetric configurations by permuting the open-shell spins
+    while preserving the occupation pattern of each spatial orbital.
+
+    Parameters
+    ----------
+    config : str
+        A bitstring of even length representing the occupation configuration.
+        The first half represents alpha spin orbitals, the second half
+        represents beta spin orbitals. For example, "10100101" means
+        alpha orbitals [1,0,1,0] and beta orbitals [0,1,0,1].
+
+    Returns
+    -------
+    list of str
+        A list of bitstrings representing all spin-symmetric configurations.
+        Each configuration has the same spatial orbital occupation pattern
+        but with different arrangements of open-shell spins.
+
+    Raises
+    ------
+    ValueError
+        If the input bitstring has odd length.
+
+    Notes
+    -----
+    The function identifies closed-shell orbitals (doubly occupied or empty)
+    and open-shell orbitals (singly occupied with either alpha or beta spin).
+    It then generates all unique permutations of the open-shell spin
+    assignments while maintaining the overall occupation pattern.
+
+    For example, if orbital i is doubly occupied (alpha=1, beta=1), it
+    remains doubly occupied in all configurations. If orbital j has only
+    alpha spin (alpha=1, beta=0), it may exchange with other open-shell
+    orbitals in the generated configurations.
+
+    Examples
+    --------
+    >>> spin_symmetric_configs("10100101")
+    # Returns configurations with the same spatial occupation but
+    # different open-shell spin arrangements
+    """
+    n_bits = len(config)
+    if n_bits % 2 != 0:
+        raise ValueError("Bitstring must have even length.")
+
+    # Alpha, beta, and occupation number vectors
+    alpha, beta = config[:n_bits//2], config[n_bits//2:]
+    occ_vec = [int(alpha[i]) + int(beta[i]) for i in range(n_bits//2)]
+
+    # 1 for alpha spins, -1 for beta spins, 0 for closed shell
+    open_shells = [int(alpha[i]) - int(beta[i]) for i in range(n_bits//2)]
+
+    # Generate all unique permutations of open-shell spins
+    open_spins = [x for x in open_shells if x]
+    perms = list(itertools.permutations(open_spins))
+
+    # Prepare a mask for the open shell indices in occ_vec
+    occ_vec = np.array(occ_vec)
+    open_mask = [True if x else False for x in open_shells]
+
+    # Generate bitstrings from open shell permutations
+    bitstrings = []
+    for perm in perms:
+        occ_vec[open_mask] = perm
+        alpha = [0] * (n_bits//2)
+        beta  = [0] * (n_bits//2)
+        for i, n in enumerate(occ_vec):
+            if n == 2:
+                alpha[i] = beta[i] = 1
+            elif n == 1:
+                alpha[i] = 1
+            elif n == -1:
+                beta[i] = 1
+        bits = alpha + beta
+        bitstring = ''.join(map(str, bits))
+        bitstrings.append(bitstring)
+
+    return bitstrings
+
 
 # ---------- Total spin operators ----------
 def spin_ops(n_spatial_orbs: int):
@@ -169,6 +261,7 @@ def spin_ops(n_spatial_orbs: int):
 
     return Sz.tocsc(), Splus.tocsc(), Sminus.tocsc()
 
+
 def total_spin_S2(n_spatial_orbs: int) -> csc_matrix:
     """
     Construct the total spin operator S^2.
@@ -198,6 +291,7 @@ def total_spin_S2(n_spatial_orbs: int) -> csc_matrix:
     Sz, Splus, Sminus = spin_ops(n_spatial_orbs)
     return (Sz @ Sz + 0.5 * (Splus @ Sminus + Sminus @ Splus)).tocsc()
 
+
 # ---------- Utilities ----------
 def expectation(op: csc_matrix, psi: np.ndarray) -> complex:
     """
@@ -223,6 +317,7 @@ def expectation(op: csc_matrix, psi: np.ndarray) -> complex:
         raise ValueError("State vector has zero norm.")
     psi_norm = psi / np.sqrt(norm)
     return np.vdot(psi_norm, op @ psi_norm)
+
 
 # ---------- Example usage ----------
 if __name__ == "__main__":
