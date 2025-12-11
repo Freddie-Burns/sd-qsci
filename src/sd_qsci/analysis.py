@@ -415,9 +415,13 @@ def plot_convergence_comparison(
         markersize=4,
         color='#0072B2',
     )
+    # Only plot spin-recovery points at subspace sizes that are closed under
+    # spin symmetry (i.e., include all members of each spin-symmetric set).
+    spin_closed_sizes = set(spin_closed_subspace_sizes(qc_results.sv.data))
+    df_symm = conv_results.df[conv_results.df['subspace_size'].isin(spin_closed_sizes)]
     ax.plot(
-        conv_results.df['subspace_size'],
-        conv_results.df['spin_symm_energy'],
+        df_symm['subspace_size'],
+        df_symm['spin_symm_energy'],
         '^-',
         label='QSCI (spin recovery)',
         linewidth=2,
@@ -523,6 +527,102 @@ def plot_energy_vs_samples(
     plt.tight_layout()
     (Path(data_dir) / 'h6_energy_vs_samples.png').parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(Path(data_dir) / 'h6_energy_vs_samples.png', dpi=300, bbox_inches='tight')
+    plt.close(fig)
+
+
+def plot_total_spin_vs_subspace(
+    data_dir: Path,
+    qc_results: QuantumChemistryResults,
+    conv_results: ConvergenceResults,
+    title_prefix: Optional[str] = None,
+):
+    """
+    Plot total spin <S^2> versus subspace size with/without spin symmetry recovery.
+
+    For each subspace size present in conv_results, builds the QSCI ground-state
+    vector using (a) the raw circuit statevector amplitudes and (b) the spin-
+    symmetry recovered amplitudes, then evaluates the expectation value of the
+    total spin operator S^2.
+
+    Parameters
+    ----------
+    data_dir : Path
+        Directory to save the PNG file.
+    qc_results : QuantumChemistryResults
+        Quantum chemistry results containing the Hamiltonian and statevectors.
+    conv_results : ConvergenceResults
+        Convergence data that provides the subspace sizes to evaluate.
+    title_prefix : str, optional
+        Prefix to add to the plot title. Default is None.
+    """
+    sns.set_style("whitegrid")
+
+    # Build S^2 operator in the full Fock space (RHF ordering assumed)
+    n_spatial_orbs = qc_results.mol.nao
+    S2 = spin.total_spin_S2(n_spatial_orbs)
+
+    sizes = list(conv_results.df['subspace_size'])
+    s2_raw = []
+    s2_symm = []
+
+    # Ensure we have spin-symmetric amplitudes
+    if qc_results.spin_symm_amp is None:
+        qc_results.spin_symm_amp = spin_symm_amplitudes(qc_results.sv.data)
+    spin_symm_amp = qc_results.spin_symm_amp
+
+    for size in sizes:
+        # Raw amplitudes
+        _, psi_raw, _ = calc_qsci_energy_with_size(
+            qc_results.H, qc_results.sv.data, int(size), return_vector=True
+        )
+        s2_val_raw = spin.expectation(S2, psi_raw)
+        s2_raw.append(float(np.real(s2_val_raw)))
+
+    # For spin-symmetry recovered amplitudes, evaluate only at spin-closed sizes
+    symm_sizes = sorted(set(spin_closed_subspace_sizes(qc_results.sv.data)))
+    for size in symm_sizes:
+        _, psi_symm, _ = calc_qsci_energy_with_size(
+            qc_results.H, spin_symm_amp, int(size), return_vector=True
+        )
+        s2_val_symm = spin.expectation(S2, psi_symm)
+        s2_symm.append(float(np.real(s2_val_symm)))
+
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+
+    ax.plot(
+        sizes,
+        s2_raw,
+        'o-',
+        label='QSCI <S^2> (raw amplitudes)',
+        linewidth=2,
+        markersize=4,
+        color='#0072B2',
+    )
+    ax.plot(
+        symm_sizes,
+        s2_symm,
+        's-',
+        label='QSCI <S^2> (spin-symmetry recovered)',
+        linewidth=2,
+        markersize=4,
+        color='#D55E00',
+    )
+
+    ax.set_xlabel('Subspace Size (Number of Configurations)', fontsize=12)
+    ax.set_ylabel('Total spin <S^2>', fontsize=12)
+    bond_info = f"Bond Length = {qc_results.bond_length:.2f} Å" if qc_results.bond_length is not None else ""
+    title = (f"Total Spin vs Subspace Size\n{bond_info}")
+    if title_prefix:
+        title = f"{title_prefix}: " + title
+    ax.set_title(title, fontsize=14, fontweight='bold')
+
+    ax.legend(fontsize=10, loc='best')
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    out_path = Path(data_dir) / 'total_spin_vs_subspace.png'
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_path, dpi=300, bbox_inches='tight')
     plt.close(fig)
 
 
@@ -717,6 +817,49 @@ def spin_symm_amplitudes(sv_data: np.ndarray) -> np.ndarray:
     return sv_data_new
 
 
+def spin_closed_subspace_sizes(sv_data: np.ndarray) -> list[int]:
+    """
+    Compute the sequence of subspace sizes that are closed under spin symmetry.
+
+    The subspace growth follows the natural importance ordering given by
+    descending absolute value of the raw statevector amplitudes. Whenever a new
+    configuration is selected, all of its spin-symmetric partners must be
+    included before emitting the next valid size. This ensures that each
+    reported size corresponds to a subspace that contains complete spin
+    orbits.
+
+    Parameters
+    ----------
+    sv_data : np.ndarray
+        Full statevector amplitudes (complex). The magnitudes are used to
+        determine the selection order.
+
+    Returns
+    -------
+    list[int]
+        A strictly increasing list of subspace sizes (counts of unique
+        configurations) where each size corresponds to a union of complete
+        spin-symmetric sets.
+    """
+    n_bits = int(np.log2(sv_data.size))
+    # Sort indices by decreasing amplitude magnitude
+    sorted_idx = np.argsort(np.abs(sv_data))[::-1]
+
+    selected: set[int] = set()
+    sizes: list[int] = []
+
+    for idx in sorted_idx:
+        if idx in selected:
+            continue
+        # Add the entire spin-symmetric orbit for this index
+        orbit = spin_symm_indices(int(idx), n_bits)
+        for j in orbit:
+            selected.add(j)
+        sizes.append(len(selected))
+
+    return sizes
+
+
 __all__ = [
     'QuantumChemistryResults',
     'ConvergenceResults',
@@ -728,6 +871,7 @@ __all__ = [
     'run_quantum_chemistry_calculations',
     'plot_convergence_comparison',
     'plot_energy_vs_samples',
+    'plot_total_spin_vs_subspace',
     'plot_statevector_coefficients',
     'save_convergence_data',
     'setup_data_directory',
