@@ -415,7 +415,6 @@ def plot_convergence_comparison(
         markersize=4,
         color='#0072B2',
     )
-
     ax.plot(
         conv_results.df['subspace_size'],
         conv_results.df['spin_symm_energy'],
@@ -425,7 +424,6 @@ def plot_convergence_comparison(
         markersize=4,
         color='#D55E00',
     )
-
     ax.plot(
         conv_results.df['subspace_size'],
         conv_results.df['fci_subspace_energy'],
@@ -436,12 +434,27 @@ def plot_convergence_comparison(
         color='#009E73',
     )
 
-    ax.axhline(y=qc_results.rhf.e_tot, color='blue', linestyle='--', linewidth=2,
-               label=f'RHF: {qc_results.rhf.e_tot:.6f} Ha')
-    ax.axhline(y=qc_results.uhf.e_tot, color='orange', linestyle='--', linewidth=2,
-               label=f'UHF: {qc_results.uhf.e_tot:.6f} Ha')
-    ax.axhline(y=qc_results.fci_energy, color='green', linestyle='--', linewidth=2,
-               label=f'FCI: {qc_results.fci_energy:.6f} Ha')
+    ax.axhline(
+        y=qc_results.rhf.e_tot,
+        color='blue',
+        linestyle='--',
+        linewidth=2,
+        label=f'RHF: {qc_results.rhf.e_tot:.2f} Ha',
+    )
+    ax.axhline(
+        y=qc_results.uhf.e_tot,
+        color='orange',
+        linestyle='--',
+        linewidth=2,
+        label=f'UHF: {qc_results.uhf.e_tot:.2f} Ha',
+    )
+    ax.axhline(
+        y=qc_results.fci_energy,
+        color='green',
+        linestyle='--',
+        linewidth=2,
+        label=f'FCI: {qc_results.fci_energy:.2f} Ha',
+    )
 
     ax.set_xlabel('Subspace Size (Number of Configurations)', fontsize=12)
     ax.set_ylabel('Energy (Hartree)', fontsize=12)
