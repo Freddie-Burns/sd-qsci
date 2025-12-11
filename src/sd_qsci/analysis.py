@@ -590,7 +590,6 @@ def plot_total_spin_vs_subspace(
         Prefix to add to the plot title. Default is None.
     """
     sns.set_style("whitegrid")
-    fig, ax = plt.subplots(figsize=(12, 8))
 
     # Build S^2 operator in the full Fock space (RHF ordering assumed)
     n_spatial_orbs = qc_results.mol.nao
@@ -615,6 +614,11 @@ def plot_total_spin_vs_subspace(
 
     # For spin-symmetry recovered amplitudes, evaluate only at spin-closed sizes
     symm_sizes = sorted(set(spin_closed_subspace_sizes(qc_results.sv.data)))
+    # Keep only sizes within the computed convergence range to ensure
+    # the x-axis aligns with available subspace sizes
+    if len(sizes) > 0:
+        max_size = int(sizes[-1])
+        symm_sizes = [int(s) for s in symm_sizes if int(s) <= max_size]
     for size in symm_sizes:
         _, psi_symm, _ = calc_qsci_energy_with_size(
             qc_results.H, spin_symm_amp, int(size), return_vector=True
@@ -622,7 +626,8 @@ def plot_total_spin_vs_subspace(
         s2_val_symm = spin.expectation(S2, psi_symm)
         s2_symm.append(float(np.real(s2_val_symm)))
 
-    fig, ax = plt.subplots(figsize=(7, 4.5))
+    # Use a consistent figure size with other plots for uniform font/line scales
+    fig, ax = plt.subplots(figsize=(12, 8))
 
     ax.plot(
         sizes,
