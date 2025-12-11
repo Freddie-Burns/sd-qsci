@@ -95,7 +95,7 @@ def main():
     """
     # Setup
     bond_length = 2.0
-    n_atoms = 6
+    n_atoms = 4
     print(f"Running H{n_atoms} chain bond length: {bond_length:.2f} Angstrom")
 
     run_full_analysis(bond_length, n_atoms)
@@ -124,8 +124,23 @@ def run_full_analysis(bond_length, n_atoms):
     # Compute final QSCI wavefunction and plot coefficients
     print(f"\nComputing QSCI ground state wavefunction with {conv_results.max_size} configurations...")
     qsci_energy_final, qsci_vec, qsci_indices = analysis.calc_qsci_energy_with_size(
-        qc_results.H, qc_results.sv, conv_results.max_size, return_vector=True)
-    analysis.plot_statevector_coefficients(qc_results.sv.data, qc_results.fci_vec, data_dir, n_top=20)
+        qc_results.H,
+        qc_results.sv,
+        conv_results.max_size, return_vector=True,
+    )
+
+    analysis.plot_statevector_coefficients(
+        qc_results.sv.data,
+        qc_results.fci_vec,
+        data_dir,
+        n_top=20,
+    )
+    analysis.plot_total_spin_vs_subspace(
+        data_dir=data_dir,
+        qc_results=qc_results,
+        conv_results=conv_results,
+        title_prefix="H6 Chain"
+    )
 
     # Print summary
     print_summary(data_dir, qc_results, conv_results, qsci_energy_final)
