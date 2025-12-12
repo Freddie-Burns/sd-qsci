@@ -95,7 +95,7 @@ def main():
     """
     # Setup
     bond_length = 2.0
-    n_atoms = 4
+    n_atoms = 6
     print(f"Running H{n_atoms} chain bond length: {bond_length:.2f} Angstrom")
 
     run_full_analysis(bond_length, n_atoms)
@@ -119,7 +119,7 @@ def run_full_analysis(bond_length, n_atoms):
 
     # Create plots
     analysis.plot_energy_vs_samples(data_dir, qc_results, conv_results)
-    analysis.plot_convergence_comparison(data_dir, qc_results, conv_results)
+    analysis.plot_convergence_comparison(data_dir, qc_results, conv_results, ylog=True)
 
     # Compute final QSCI wavefunction and plot coefficients
     print(f"\nComputing QSCI ground state wavefunction with {conv_results.max_size} configurations...")
