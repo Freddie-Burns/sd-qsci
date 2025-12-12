@@ -30,6 +30,8 @@ from pyscf.scf.hf import RHF
 from pyscf.scf.uhf import UHF
 from qiskit import QuantumCircuit, QuantumRegister, transpile
 from qiskit_aer import Aer
+from pathlib import Path
+from datetime import datetime
 
 from .utils import uhf_to_rhf_unitaries
 
@@ -99,7 +101,9 @@ def get_lucj_circuit(
     # Example for 4 spatial orbitals HF occupations -> 00110011 (alpha block then beta block)
     # Note: Do NOT measure here; measurement collapses the state and yields a
     # single-basis statevector. Leave the circuit unmeasured for statevector sims.
-    return transpile(circuit, backend=backend, optimization_level=3)
+    tqc = transpile(circuit, backend=backend, optimization_level=3)
+    _count_and_log_gates(tqc, label="lucj")
+    return tqc
 
 
 @profile
@@ -152,6 +156,7 @@ def orbital_rotation_circuit(
         # Optimize for a single Slater determinant state
         qc = ffsim.qiskit.PRE_INIT.run(qc)
 
+    _count_and_log_gates(qc, label="orbital_rotation")
     return qc
 
 
@@ -195,6 +200,117 @@ def rhf_uhf_orbital_rotation_circuit(
     return qc
 
 
+def uhf_rotation_then_lucj_circuit(
+    ccsd_obj: CCSD,
+    backend,
+    rhf: RHF,
+    uhf: UHF,
+    n_reps: int = 1,
+    pairs_aa: list[tuple[int]] | None = None,
+    pairs_ab: list[tuple[int]] | None = None,
+    ab_coupling_interval: int = 1,  # only used if pairs_ab not set
+    homo_lumo_expansion: bool = True,
+    optimize_single_slater: bool = True,
+):
+    """
+    Create a circuit that first applies the RHF->UHF orbital rotation and then
+    appends a LUCJ block, without performing a Hartree–Fock state preparation
+    inside the LUCJ construction.
+
+    This is useful when you want the UHF-rotated Slater determinant as the
+    reference state for the subsequent LUCJ ansatz, avoiding duplicate HF
+    initialization.
+
+    Parameters
+    ----------
+    ccsd_obj : pyscf.cc.CCSD
+        A converged CCSD object providing `t2` amplitudes and `mol` (for `nao`, `nelec`).
+    backend : qiskit backend
+        Backend for transpilation (e.g., Aer statevector or a target device backend).
+    rhf : pyscf.scf.hf.RHF
+        Converged RHF mean-field used to define the reference orbital basis.
+    uhf : pyscf.scf.uhf.UHF
+        Converged UHF mean-field defining the target spin-orbital rotation.
+    n_reps : int, default 1
+        Number of LUCJ repetitions.
+    pairs_aa, pairs_ab : list[tuple[int]] | None
+        Interaction graphs for same-spin and opposite-spin pairs. If None,
+        defaults are used (linear chain for aa and diagonal pairs for ab).
+    ab_coupling_interval : int, default 1
+        Spacing for ab diagonal couplings when `pairs_ab` is not specified.
+    homo_lumo_expansion : bool, default True
+        Apply a lightcone-like pruning heuristic used elsewhere in this module.
+    optimize_single_slater : bool, default True
+        Apply single-Slater optimization passes to the orbital rotation part.
+
+    Returns
+    -------
+    qiskit.QuantumCircuit
+        The combined circuit.
+    """
+    norb, nelec = int(ccsd_obj.mol.nao), ccsd_obj.mol.nelec
+
+    # 1) Build UHF orbital rotation on top of HF preparation
+    Ua, Ub = uhf_to_rhf_unitaries(ccsd_obj.mol, rhf, uhf)
+    qc = orbital_rotation_circuit(
+        nao=norb,
+        nelec=nelec,
+        Ua=Ua,
+        Ub=Ub,
+        prepare_hf=True,
+        optimize_single_slater=optimize_single_slater,
+    )
+
+    # 2) Build LUCJ op WITHOUT HF initialization and append to the same circuit
+    ucj_op = ffsim.UCJOpSpinBalanced.from_t_amplitudes(ccsd_obj.t2, n_reps=n_reps)
+    if pairs_aa is None:
+        pairs_aa = [(p, p + 1) for p in range(norb - 1)]
+    if pairs_ab is None:
+        pairs_ab = [(p, p) for p in range(0, norb, ab_coupling_interval)]
+    interaction_pairs = (pairs_aa, pairs_ab)
+
+    lparams = ucj_op.to_parameters(interaction_pairs=interaction_pairs)
+    lucj_op = ffsim.UCJOpSpinBalanced.from_parameters(
+        lparams,
+        norb=norb,
+        n_reps=n_reps,
+        interaction_pairs=interaction_pairs,
+        with_final_orbital_rotation=False,
+    )
+
+    qubits = qc.qubits  # reuse existing register
+    qc.append(ffsim.qiskit.UCJOpSpinBalancedJW(lucj_op), qubits)
+    qc = qc.decompose().decompose()
+
+    if homo_lumo_expansion:
+        # lightcone optimization (same heuristic used in get_lucj_circuit)
+        n_gates = len(qc.data)
+        n_gates_prior = None
+        while n_gates != n_gates_prior:
+            n_gates_prior = n_gates
+            drop_gate_indices = []
+            for index, gate in enumerate(qc.data):
+                if getattr(gate, "name", None) == "xx_plus_yy":
+                    gate_qubits = {q._index for q in gate.qubits}
+                    gate_intersections = [
+                        gate_prior.name
+                        for gate_prior in qc.data[:index]
+                        if gate_prior.name != "barrier"
+                        and gate_qubits.intersection({q._index for q in gate_prior.qubits})
+                        != set()
+                    ]
+                    if gate_intersections == [] or gate_intersections == ["x", "x"]:
+                        drop_gate_indices.append(index)
+            drop_gate_indices = list(sorted(set(drop_gate_indices)))
+            for i, index in enumerate(drop_gate_indices):
+                qc.data.pop(index - i)
+            n_gates = len(qc.data)
+
+    tqc = transpile(qc, backend=backend, optimization_level=3)
+    _count_and_log_gates(tqc, label="uhf_plus_lucj")
+    return tqc
+
+
 @profile
 def simulate(qc, *, optimization_level: int=1):
     """
@@ -220,8 +336,56 @@ def simulate(qc, *, optimization_level: int=1):
     return result.get_statevector()
 
 
+def _count_and_log_gates(qc: QuantumCircuit, *, label: str):
+    """
+    Count 1-qubit and 2-qubit gates in a circuit, print them, and append to
+    a CSV file at the repository root (gate_counts.csv).
+
+    Notes:
+    - Barriers, measurements, and resets are ignored.
+    - The count is based on the number of qubits each instruction acts on
+      after any decompositions/transpilation applied by the caller.
+    """
+    # Identify operations to ignore for counting
+    ignore = {"barrier", "measure", "reset"}
+    one_q = 0
+    two_q = 0
+    for inst, qargs, _ in qc.data:
+        name = getattr(inst, "name", None)
+        if name in ignore:
+            continue
+        n = len(qargs)
+        if n == 1:
+            one_q += 1
+        elif n == 2:
+            two_q += 1
+        else:
+            # ignore multi-qubit gates beyond 2-qubit for the requested stats
+            pass
+
+    total = one_q + two_q
+    msg = f"[sd_qsci] {label} circuit gates: 1q={one_q}, 2q={two_q}, total(<=2q)={total}"
+    print(msg)
+
+    # Append to CSV at repo root
+    try:
+        repo_root = Path(__file__).resolve().parents[2]
+        csv_path = repo_root / "gate_counts.csv"
+        header_needed = not csv_path.exists()
+        timestamp = datetime.now().isoformat(timespec="seconds")
+        line = f"{timestamp},{label},{one_q},{two_q},{total}\n"
+        with csv_path.open("a", encoding="utf-8") as f:
+            if header_needed:
+                f.write("timestamp,label,one_qubit,two_qubit,total_leq_2\n")
+            f.write(line)
+    except Exception:
+        # Silently ignore logging failures to avoid breaking workflows
+        pass
+
+
 __all__ = [
     "orbital_rotation_circuit",
     "rhf_uhf_orbital_rotation_circuit",
+    "uhf_rotation_then_lucj_circuit",
     "simulate",
 ]

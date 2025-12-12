@@ -25,8 +25,8 @@ from sd_qsci import circuit, hamiltonian, spin
 
 
 # Defaults for tolerances (can be overridden by callers)
-DEFAULT_SV_TOL = 1e-6
-DEFAULT_FCI_TOL = 1e-6
+DEFAULT_SV_TOL = 1e-16
+DEFAULT_FCI_TOL = 1e-16
 
 
 @dataclass
