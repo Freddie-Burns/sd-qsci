@@ -27,9 +27,10 @@ def main():
     analyzes how QSCI energy converges to FCI as the subspace size increases
     by varying the number of configurations included based on amplitude ranking.
     """
-    # Create subdirectory within data/ named after this script's prefix
-    script_name = Path(__file__).stem  # e.g., '03_h6_lattice_n_dets'
-    data_dir = Path(__file__).parent / 'data' / script_name
+    # Save under grouped short code (e.g., '03a') inside this script's folder
+    stem = Path(__file__).stem
+    short_code = stem.split('_')[0]
+    data_dir = Path(__file__).parent / 'data' / short_code
     data_dir.mkdir(parents=True, exist_ok=True)
 
     bond_length = 2.0

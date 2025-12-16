@@ -91,7 +91,9 @@ def main():
     """
     # Setup
     bond_length = 2.0
-    data_dir = Path(__file__).parent / 'data' / '03c_h6_chain' / f"bond_length_{bond_length:.2f}"
+    stem = Path(__file__).stem
+    short_code = stem.split('_')[0]
+    data_dir = Path(__file__).parent / 'data' / short_code / f"bond_length_{bond_length:.2f}"
     print(f"Running bond length: {bond_length:.2f} Angstrom")
 
     # Run quantum chemistry calculations

@@ -9,7 +9,7 @@ overall FCI energy. It produces both linear and log-y plots, for:
 - Energy difference vs mean sample number (log x)
 
 Outputs are saved under:
-    research/data/09b_lucj_comparison/bond_length_XX
+    research/09/data/09b/bond_length_XX
 """
 
 from pathlib import Path
@@ -440,7 +440,8 @@ def main():
     # Configuration
     bond_length = 2.0
     base_dir = Path(__file__).parent
-    out_dir = base_dir / 'data' / Path(__file__).stem / f"bond_length_{bond_length:.2f}"
+    short_code = Path(__file__).stem.split('_')[0]
+    out_dir = base_dir / 'data' / short_code / f"bond_length_{bond_length:.2f}"
 
     print("Building H6 chain and running RHF/UHF/FCI...")
     mol = build_h_chain(bond_length, n_atoms=6)

@@ -102,8 +102,10 @@ def main():
 
 
 def run_full_analysis(bond_length, n_atoms):
-    filename = Path(__file__).stem
-    data_dir = Path(__file__).parent / 'data' / filename / f"bond_length_{bond_length:.2f}_spin_symm"
+    # Save under grouped short code (e.g., '08', '09a') inside this script's folder
+    stem = Path(__file__).stem
+    short_code = stem.split('_')[0]
+    data_dir = Path(__file__).parent / 'data' / short_code / f"bond_length_{bond_length:.2f}_spin_symm"
 
     # Run quantum chemistry calculations
     mol = build_h_chain(bond_length, n_atoms)

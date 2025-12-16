@@ -1,6 +1,5 @@
 """
-H3+ Triangular Hydrogen Ion QSCI Calculation.
-Using STO-6G basis set.
+H6 Chain, two separated equilibrium 3 atom chains
 """
 
 from pathlib import Path
@@ -10,7 +9,7 @@ from pyscf import gto, scf
 
 from sd_qsci import analysis
 
-
+# Script-specific tolerances
 SV_TOL = 1e-2
 FCI_TOL = 1e-6
 
@@ -20,14 +19,14 @@ def main():
     Run H6 triangular lattice energy calculations and analyze QSCI convergence.
     """
     # Setup
-    bond_length = 2.0
-    data_dir = Path(__file__).parent / 'data' / '05a_h3_sto3g' / f"bond_length_{bond_length:.2f}"
-    print(f"Running bond length: {bond_length:.2f} Angstrom")
+    stem = Path(__file__).stem
+    short_code = stem.split('_')[0]
+    data_dir = Path(__file__).parent / 'data' / short_code
 
     # Run quantum chemistry calculations
-    mol = build_h3_plus(bond_length)
+    mol = build_h6_chain()
     rhf = scf.RHF(mol).run()
-    qc_results = analysis.run_quantum_chemistry_calculations(mol, rhf, bond_length)
+    qc_results = analysis.run_quantum_chemistry_calculations(mol, rhf, bond_length=None)
 
     # Calculate convergence data
     conv_results = analysis.calc_convergence_data(qc_results)
@@ -49,16 +48,17 @@ def main():
     print_summary(data_dir, qc_results, conv_results, qsci_energy_final)
 
 
-def build_h3_plus(bond_length):
+def build_h6_chain():
     """
     Build a triangular lattice of 6 hydrogen atoms.
     """
-    # Create triangular lattice: 3 atoms in first row, 3 in second row
-    h = bond_length * np.sqrt(3) / 2
     coords = [
-        (0.0 * bond_length, 0, 0),
-        (1.0 * bond_length, 0, 0),
-        (0.5 * bond_length, h, 0),
+        (0, 0, 0),
+        (1, 0, 0),
+        (2, 0, 0),
+        (4, 0, 0),
+        (5, 0, 0),
+        (6, 0, 0),
     ]
     geometry = '; '.join([f'H {x:.8f} {y:.8f} {z:.8f}' for x, y, z in coords])
     mol = gto.Mole()
@@ -66,19 +66,15 @@ def build_h3_plus(bond_length):
         atom=geometry,
         unit='Angstrom',
         basis='sto-3g',
-        charge=1,
+        charge=0,
         spin=0,
         verbose=0,
     )
     return mol
 
 
-def print_summary(
-        data_dir: Path,
-        qc_results: analysis.QuantumChemistryResults,
-        conv_results: analysis.ConvergenceResults,
-        qsci_energy_final: float,
-):
+def print_summary(data_dir: Path, qc_results: analysis.QuantumChemistryResults,
+                 conv_results: analysis.ConvergenceResults, qsci_energy_final: float):
     """
     Print summary of results to console.
     """
