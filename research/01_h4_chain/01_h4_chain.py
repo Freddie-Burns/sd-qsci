@@ -4,6 +4,8 @@ Ensure the statevector after orbital rotation gives the same energy and spin
 as the input UHF state.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -45,7 +47,10 @@ def main():
     qsci_energies = []
     bond_lengths = []
 
-    for bond_length in np.linspace(0.5, 3, 2):
+    # Save under grouped short code (e.g., '09a') inside this script's folder
+    data_dir = Path(__file__).parent / 'data'
+
+    for bond_length in np.linspace(0.5, 3, 21):
         print(f"Running bond length: {bond_length:.2f} Angstrom")
         mol = build_h4_chain(bond_length)
         rhf = scf.RHF(mol).run()
@@ -80,7 +85,7 @@ def main():
     plt.legend(fontsize=11)
     plt.grid(True, alpha=0.3)
     plt.tight_layout()
-    # plt.savefig('figures/h4_chain_energies.png', dpi=300, bbox_inches='tight')
+    plt.savefig(data_dir / 'h4_chain_energies.png', dpi=300, bbox_inches='tight')
     # plt.show()
 
     print("\nPlot saved as 'h4_chain_energies.png'")
