@@ -1,6 +1,11 @@
 07 H6 chain bisect study
 
-![H6 chain (bisect) — QSCI convergence](data/07_h6_chain_bisect/h6_qsci_convergence.png)
+<figure>
+  <img src="data/07_h6_chain_bisect/h6_qsci_convergence.png" alt="H6 chain (bisect) — QSCI convergence" width="65%" />
+  <figcaption>
+    Convergence behavior for the H6 chain while tuning parameters via bisection; shows how the chosen criterion stabilizes around the target.
+  </figcaption>
+</figure>
 
 Scripts
 - 07_h6_chain_bisect.py

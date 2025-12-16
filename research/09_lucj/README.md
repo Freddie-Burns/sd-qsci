@@ -3,7 +3,12 @@ LUCJ circuits and comparisons (09)
 Purpose
 - Explore Low-Depth Unitary Coupled-Cluster with Jastrow (LUCJ) circuits and compare with alternatives.
 
-![LUCJ comparison — QSCI energy convergence](data/09b_lucj_comparison/bond_length_2.00/h6_qsci_convergence_energy_linear.png)
+<figure>
+  <img src="data/09b_lucj_comparison/bond_length_2.00/h6_qsci_convergence_energy_linear.png" alt="LUCJ comparison — QSCI energy convergence" width="65%" />
+  <figcaption>
+    Energy convergence at 2.00 Å comparing LUCJ variants/parameters; highlights how low-depth ansätze approach reference energies under QSCI evaluation.
+  </figcaption>
+</figure>
 
 Scripts
 - 09a_lucj_circuit.py — construct and analyze a LUCJ circuit across bond lengths

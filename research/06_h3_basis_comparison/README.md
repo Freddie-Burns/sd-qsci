@@ -4,7 +4,12 @@ Purpose
 - Systematically compare QSCI and reference energies across many basis sets for H3+.
 - Includes a quick test script and a full analysis.
 
-![H3+ basis sets — energy levels overview](data/06_h3_basis_comparison/basis_energy_levels.png)
+<figure>
+  <img src="data/06_h3_basis_comparison/basis_energy_levels.png" alt="H3+ basis sets — energy levels overview" width="65%" />
+  <figcaption>
+    Overview of H3+ energy levels across basis sets: illustrates accuracy–cost trade‑offs and trends that guide the broader comparison study.
+  </figcaption>
+</figure>
 
 Scripts
 - 06_h3_basis_comparison.py — full analysis across many basis sets
