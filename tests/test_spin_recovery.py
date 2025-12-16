@@ -11,7 +11,7 @@ sys.path.insert(0, str(research_dir))
 
 # Import directly from the module file (with underscore prefix removed for import)
 import importlib.util
-spec = importlib.util.spec_from_file_location("spin_recovery", research_dir / "08_spin_recovery.py")
+spec = importlib.util.spec_from_file_location("spin_recovery", research_dir / "08_spin_recovery" / "08_spin_recovery.py")
 spin_recovery = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(spin_recovery)
 spin_symmetric_configs = spin_recovery.spin_symmetric_configs
