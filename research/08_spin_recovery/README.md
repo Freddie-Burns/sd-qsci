@@ -3,6 +3,8 @@ Spin symmetry recovery (08)
 Purpose
 - Investigate spin-symmetry recovery techniques and their impact on QSCI results.
 
+![Spin symmetry recovery — QSCI convergence](data/08_spin_recovery/bond_length_2.00_spin_symm/h6_qsci_convergence.png)
+
 Scripts
 - 08_spin_recovery.py — end-to-end analysis for a small system (configurable bond length and atom count)
 

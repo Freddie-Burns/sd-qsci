@@ -1,5 +1,7 @@
 07 H6 chain bisect study
 
+![H6 chain (bisect) — QSCI convergence](data/07_h6_chain_bisect/h6_qsci_convergence.png)
+
 Scripts
 - 07_h6_chain_bisect.py
 

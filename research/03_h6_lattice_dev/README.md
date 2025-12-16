@@ -6,6 +6,9 @@ Purpose
   - 03b_h6_lattice_weights.py — investigates sampling/weighting strategies
   - 03c_h6_chain.py — chain geometry study vs bond length
 
+![H6 lattice weights – QSCI convergence](data/03b_h6_lattice_weights/h6_qsci_convergence.png)
+![H6 chain – energy vs samples](data/03c_h6_chain/h6_energy_vs_samples.png)
+
 Outputs
 - Saved under data/03a, data/03b, data/03c respectively, with per-run subfolders (e.g., bond_length_2.00)
 
