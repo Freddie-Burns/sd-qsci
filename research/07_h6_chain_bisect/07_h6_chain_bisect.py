@@ -20,8 +20,7 @@ def main():
     """
     # Setup
     stem = Path(__file__).stem
-    short_code = stem.split('_')[0]
-    data_dir = Path(__file__).parent / 'data' / short_code
+    data_dir = Path(__file__).parent / 'data' / stem
 
     # Run quantum chemistry calculations
     mol = build_h6_chain()

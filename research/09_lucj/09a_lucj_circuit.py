@@ -42,10 +42,9 @@ def main():
     bond_length = 2.0
     n_atoms = 6
 
-    # Save under grouped short code (e.g., '09a') inside this script's folder
+    # Save under grouped short code (e.g., '09a_lucj_circuit') inside this script's folder
     stem = Path(__file__).stem
-    short_code = stem.split('_')[0]
-    data_dir = Path(__file__).parent / 'data' / short_code / f"bond_length_{bond_length:.2f}"
+    data_dir = Path(__file__).parent / 'data' / stem / f"bond_length_{bond_length:.2f}"
 
     print(f"Running H{n_atoms} chain bond length: {bond_length:.2f} Angstrom")
 

@@ -28,8 +28,7 @@ def main():
     Run H3+ calculations for a few basis sets (quick test).
     """
     stem = Path(__file__).stem
-    short_code = stem.split('_')[0]
-    data_dir = Path(__file__).parent / 'data' / short_code
+    data_dir = Path(__file__).parent / 'data' / stem
     data_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"H3+ Basis Set Comparison Study (Quick Test)")

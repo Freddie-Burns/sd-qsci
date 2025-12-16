@@ -47,7 +47,7 @@ def main():
     qsci_energies = []
     bond_lengths = []
 
-    # Save under grouped short code (e.g., '09a') inside this script's folder
+    # Save under grouped short code (e.g., '09a_lucj_circuit') inside this script's folder
     data_dir = Path(__file__).parent / 'data'
 
     for bond_length in np.linspace(0.5, 3, 21):
