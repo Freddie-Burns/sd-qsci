@@ -26,6 +26,19 @@ from sd_qsci import analysis, circuit, hamiltonian
 from sd_qsci.utils import uhf_from_rhf
 
 
+# Plot style configuration (toggle between Seaborn default and whitegrid)
+# Set to True to use Seaborn's default theme; set to False to force whitegrid.
+USE_SNS_DEFAULT: bool = True
+if USE_SNS_DEFAULT: sns.set_theme()  # default seaborn style and color palette
+else: sns.set_theme(style="whitegrid")
+
+# Distinct colors for reference dashed lines (RHF, UHF, FCI)
+_palette = sns.color_palette()
+RHF_REF_COLOR = _palette[4 % len(_palette)] if _palette else '#000000'
+UHF_REF_COLOR = _palette[5 % len(_palette)] if _palette else '#FF0000'
+FCI_REF_COLOR = _palette[6 % len(_palette)] if _palette else '#00FF00'
+
+
 def build_h_chain(bond_length: float, n_atoms: int = 6) -> gto.Mole:
     coords = [(i * bond_length, 0.0, 0.0) for i in range(n_atoms)]
     geometry = '; '.join([f'H {x:.8f} {y:.8f} {z:.8f}' for x, y, z in coords])
@@ -46,7 +59,6 @@ def plot_diff_vs_subspace(
     fci_energy: float,
 ) -> None:
     """Plot (Energy - FCI) vs Subspace Size for UHF and LUCJ spin-symmetric energies."""
-    sns.set_style("whitegrid")
     fig, ax = plt.subplots(figsize=(12, 8))
 
     if logy:
@@ -59,7 +71,6 @@ def plot_diff_vs_subspace(
         label='UHF spin-symmetric',
         linewidth=2,
         markersize=4,
-        color='#D55E00',
     )
 
     ax.plot(
@@ -69,7 +80,6 @@ def plot_diff_vs_subspace(
         label='LUCJ spin-symmetric',
         linewidth=2,
         markersize=4,
-        color='#0072B2',
     )
 
     # UHF→UHF-rotation + LUCJ pipeline
@@ -80,7 +90,6 @@ def plot_diff_vs_subspace(
         label='UHF rotation + LUCJ',
         linewidth=2,
         markersize=4,
-        color='#CC79A7',
     )
 
     # FCI subspace energy difference (same for both, use one)
@@ -91,7 +100,6 @@ def plot_diff_vs_subspace(
         label='FCI subspace',
         linewidth=2,
         markersize=4,
-        color='#009E73',
         alpha=0.8,
     )
 
@@ -117,12 +125,21 @@ def plot_diff_vs_subspace(
         pass
     # Reference horizontal lines (as in analysis.py), adjusted for ΔE axis
     try:
-        ax.axhline(y=rhf_energy - fci_energy, color='blue', linestyle='--', linewidth=2,
-                   label=f'RHF: {rhf_energy:.2f} Ha')
-        ax.axhline(y=uhf_energy - fci_energy, color='orange', linestyle='--', linewidth=2,
-                   label=f'UHF: {uhf_energy:.2f} Ha')
-        ax.axhline(y=0.0, color='green', linestyle='--', linewidth=2,
-                   label=f'FCI: {fci_energy:.2f} Ha')
+        ax.axhline(
+            y=rhf_energy - fci_energy,
+            linestyle='--', linewidth=2,
+            label=f'RHF: {rhf_energy:.2f} Ha', color=RHF_REF_COLOR,
+        )
+        ax.axhline(
+            y=uhf_energy - fci_energy,
+            linestyle='--', linewidth=2,
+            label=f'UHF: {uhf_energy:.2f} Ha', color=UHF_REF_COLOR,
+        )
+        ax.axhline(
+            y=0.0,
+            linestyle='--', linewidth=2,
+            label=f'FCI: {fci_energy:.2f} Ha', color=FCI_REF_COLOR,
+        )
     except Exception:
         pass
     title = f"H6 Chain: ΔE vs Subspace Size (Spin-Symmetric)\nBond Length = {bond_length:.2f} Å"
@@ -149,7 +166,6 @@ def plot_diff_vs_samples(
     fci_energy: float,
 ) -> None:
     """Plot (Energy - FCI) vs Mean Sample Number for UHF and LUCJ spin-symmetric energies."""
-    sns.set_style("whitegrid")
     fig, ax = plt.subplots(figsize=(12, 8))
 
     if logy:
@@ -162,7 +178,6 @@ def plot_diff_vs_samples(
         label='UHF spin-symmetric',
         linewidth=2,
         markersize=4,
-        color='#D55E00',
     )
 
     ax.plot(
@@ -172,7 +187,6 @@ def plot_diff_vs_samples(
         label='LUCJ spin-symmetric',
         linewidth=2,
         markersize=4,
-        color='#0072B2',
     )
 
     ax.plot(
@@ -182,7 +196,6 @@ def plot_diff_vs_samples(
         label='UHF rotation + LUCJ',
         linewidth=2,
         markersize=4,
-        color='#CC79A7',
     )
 
     ax.set_xscale('log')
@@ -208,12 +221,21 @@ def plot_diff_vs_samples(
         pass
     # Reference horizontal lines (as in analysis.py), adjusted for ΔE axis
     try:
-        ax.axhline(y=rhf_energy - fci_energy, color='blue', linestyle='--', linewidth=2,
-                   label=f'RHF: {rhf_energy:.2f} Ha')
-        ax.axhline(y=uhf_energy - fci_energy, color='orange', linestyle='--', linewidth=2,
-                   label=f'UHF: {uhf_energy:.2f} Ha')
-        ax.axhline(y=0.0, color='green', linestyle='--', linewidth=2,
-                   label=f'FCI: {fci_energy:.2f} Ha')
+        ax.axhline(
+            y=rhf_energy - fci_energy,
+            linestyle='--', linewidth=2,
+            label=f'RHF: {rhf_energy:.2f} Ha', color=RHF_REF_COLOR,
+        )
+        ax.axhline(
+            y=uhf_energy - fci_energy,
+            linestyle='--', linewidth=2,
+            label=f'UHF: {uhf_energy:.2f} Ha', color=UHF_REF_COLOR,
+        )
+        ax.axhline(
+            y=0.0,
+            linestyle='--', linewidth=2,
+            label=f'FCI: {fci_energy:.2f} Ha', color=FCI_REF_COLOR,
+        )
     except Exception:
         pass
     title = f"H6 Chain: ΔE vs Mean Samples (Spin-Symmetric)\nBond Length = {bond_length:.2f} Å"
@@ -239,7 +261,6 @@ def plot_energy_vs_subspace_linear(
     fci_energy: float,
 ) -> None:
     """Plot actual energies vs Subspace Size (linear y) for UHF/LUCJ spin-symmetric and FCI subspace."""
-    sns.set_style("whitegrid")
     fig, ax = plt.subplots(figsize=(12, 8))
 
     ax.plot(
@@ -249,7 +270,6 @@ def plot_energy_vs_subspace_linear(
         label='UHF spin-symmetric',
         linewidth=2,
         markersize=4,
-        color='#D55E00',
     )
 
     ax.plot(
@@ -259,7 +279,6 @@ def plot_energy_vs_subspace_linear(
         label='LUCJ spin-symmetric',
         linewidth=2,
         markersize=4,
-        color='#0072B2',
     )
 
     ax.plot(
@@ -269,7 +288,6 @@ def plot_energy_vs_subspace_linear(
         label='UHF rotation + LUCJ',
         linewidth=2,
         markersize=4,
-        color='#CC79A7',
     )
 
     ax.plot(
@@ -279,7 +297,6 @@ def plot_energy_vs_subspace_linear(
         label='FCI subspace',
         linewidth=2,
         markersize=4,
-        color='#009E73',
         alpha=0.8,
     )
 
@@ -296,12 +313,21 @@ def plot_energy_vs_subspace_linear(
         ax.set_xlim(left=1)
     # Reference horizontal lines (as in analysis.py)
     try:
-        ax.axhline(y=rhf_energy, color='blue', linestyle='--', linewidth=2,
-                   label=f'RHF: {rhf_energy:.2f} Ha')
-        ax.axhline(y=uhf_energy, color='orange', linestyle='--', linewidth=2,
-                   label=f'UHF: {uhf_energy:.2f} Ha')
-        ax.axhline(y=fci_energy, color='green', linestyle='--', linewidth=2,
-                   label=f'FCI: {fci_energy:.2f} Ha')
+        ax.axhline(
+            y=rhf_energy,
+            linestyle='--', linewidth=2,
+            label=f'RHF: {rhf_energy:.2f} Ha', color=RHF_REF_COLOR,
+        )
+        ax.axhline(
+            y=uhf_energy,
+            linestyle='--', linewidth=2,
+            label=f'UHF: {uhf_energy:.2f} Ha', color=UHF_REF_COLOR,
+        )
+        ax.axhline(
+            y=fci_energy,
+            linestyle='--', linewidth=2,
+            label=f'FCI: {fci_energy:.2f} Ha', color=FCI_REF_COLOR,
+        )
     except Exception:
         pass
     title = f"H6 Chain: Energy vs Subspace Size (Spin-Symmetric)\nBond Length = {bond_length:.2f} Å"
@@ -327,7 +353,6 @@ def plot_energy_vs_samples_linear(
     fci_energy: float,
 ) -> None:
     """Plot actual energies vs Mean Sample Number (log x, linear y) for UHF/LUCJ spin-symmetric and FCI subspace."""
-    sns.set_style("whitegrid")
     fig, ax = plt.subplots(figsize=(12, 8))
 
     ax.plot(
@@ -337,7 +362,6 @@ def plot_energy_vs_samples_linear(
         label='UHF spin-symmetric',
         linewidth=2,
         markersize=4,
-        color='#D55E00',
     )
 
     ax.plot(
@@ -347,7 +371,6 @@ def plot_energy_vs_samples_linear(
         label='LUCJ spin-symmetric',
         linewidth=2,
         markersize=4,
-        color='#0072B2',
     )
 
     ax.plot(
@@ -357,7 +380,6 @@ def plot_energy_vs_samples_linear(
         label='UHF rotation + LUCJ',
         linewidth=2,
         markersize=4,
-        color='#CC79A7',
     )
 
     ax.plot(
@@ -367,7 +389,6 @@ def plot_energy_vs_samples_linear(
         label='FCI subspace',
         linewidth=2,
         markersize=4,
-        color='#009E73',
         alpha=0.8,
     )
 
@@ -386,12 +407,21 @@ def plot_energy_vs_samples_linear(
         ax.set_xlim(left=1)
     # Reference horizontal lines (as in analysis.py)
     try:
-        ax.axhline(y=rhf_energy, color='blue', linestyle='--', linewidth=2,
-                   label=f'RHF: {rhf_energy:.2f} Ha')
-        ax.axhline(y=uhf_energy, color='orange', linestyle='--', linewidth=2,
-                   label=f'UHF: {uhf_energy:.2f} Ha')
-        ax.axhline(y=fci_energy, color='green', linestyle='--', linewidth=2,
-                   label=f'FCI: {fci_energy:.2f} Ha')
+        ax.axhline(
+            y=rhf_energy,
+            linestyle='--', linewidth=2,
+            label=f'RHF: {rhf_energy:.2f} Ha', color=RHF_REF_COLOR,
+        )
+        ax.axhline(
+            y=uhf_energy,
+            linestyle='--', linewidth=2,
+            label=f'UHF: {uhf_energy:.2f} Ha', color=UHF_REF_COLOR,
+        )
+        ax.axhline(
+            y=fci_energy,
+            linestyle='--', linewidth=2,
+            label=f'FCI: {fci_energy:.2f} Ha', color=FCI_REF_COLOR,
+        )
     except Exception:
         pass
     title = f"H6 Chain: Energy vs Mean Samples (Spin-Symmetric)\nBond Length = {bond_length:.2f} Å"

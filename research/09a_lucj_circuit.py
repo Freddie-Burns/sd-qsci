@@ -1,5 +1,21 @@
 """
+Research script to build and analyze a LUCJ circuit for an H6 hydrogen chain.
 
+What it does:
+- Builds a linear H6 molecule at a chosen bond length and runs RHF → UHF (via
+  spin‑unrestriction helper) and CCSD with PySCF.
+- Constructs a LUCJ variational circuit from the CCSD data and simulates it on
+  the Qiskit Aer statevector simulator.
+- Derives the molecular Hamiltonian and computes reference FCI energy and
+  amplitudes.
+- Evaluates QSCI convergence data and saves summary CSVs and plots, including:
+  - h6_qsci_convergence.png / .csv
+  - h6_energy_vs_samples.png
+  - statevector_coefficients.png and statevector_coefficients_full.png
+  - lucj_circuit.png (diagram of the LUCJ circuit)
+
+Outputs are written under research/data/09a_lucj_circuit/bond_length_XX.XX.
+Run this file directly to reproduce the analysis for the configured bond length.
 """
 
 from pathlib import Path
@@ -14,8 +30,8 @@ from sd_qsci.utils import uhf_from_rhf
 
 
 # Script-specific tolerances
-SV_TOL = 1e-2
-FCI_TOL = 1e-6
+# SV_TOL = 1e-2
+CHEM_ACC = 1.6e-3
 
 
 def main():
@@ -38,7 +54,7 @@ def main():
     ccsd = CCSD(rhf).run()
 
     backend = Aer.get_backend("statevector_simulator")
-    qc = circuit.get_lucj_circuit(ccsd_obj=ccsd, backend=backend, n_reps=10)
+    qc = circuit.get_lucj_circuit(ccsd_obj=ccsd, backend=backend, n_reps=1)
 
     # Ensure output directory exists and save an image of the LUCJ circuit
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -76,8 +92,22 @@ def main():
     analysis.save_convergence_data(data_dir, qc_results, conv_results)
 
     # Create plots
-    analysis.plot_energy_vs_samples(data_dir, qc_results, conv_results)
-    analysis.plot_convergence_comparison(data_dir, qc_results, conv_results, ylog=True)
+    # Label plots to reflect that the statevector comes from a LUCJ circuit
+    analysis.plot_energy_vs_samples(
+        data_dir,
+        qc_results,
+        conv_results,
+        label_raw='LUCJ State',
+        label_spin='LUCJ State (Spin Recovered)'
+    )
+    analysis.plot_convergence_comparison(
+        data_dir,
+        qc_results,
+        conv_results,
+        ylog=True,
+        label_raw='LUCJ State',
+        label_spin='LUCJ State (Spin Recovered)'
+    )
 
     # Compute final QSCI wavefunction and plot coefficients
     print(f"\nComputing QSCI ground state wavefunction with {conv_results.max_size} configurations...")
@@ -143,7 +173,7 @@ def print_summary(
     print(f"  Energy difference to FCI: {conv_results.df['qsci_energy'].min() - qc_results.fci_energy:.2e} Ha")
     print(f"\nMilestones:")
     print(f"  Configs to fall below UHF: {conv_results.n_configs_below_uhf if conv_results.n_configs_below_uhf else 'Never achieved'}")
-    print(f"  Configs to reach FCI (±{FCI_TOL:.0e} Ha): {conv_results.n_configs_reach_fci if conv_results.n_configs_reach_fci else 'Never achieved'}")
+    print(f"  Configs to reach FCI (±{CHEM_ACC:.0e} Ha): {conv_results.n_configs_reach_fci if conv_results.n_configs_reach_fci else 'Never achieved'}")
     print(f"\nData saved to '{data_dir}' directory:")
     print("  - h6_qsci_convergence.csv (full energy data)")
     print("  - h6_summary.csv (summary statistics)")

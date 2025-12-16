@@ -386,6 +386,8 @@ def plot_convergence_comparison(
     conv_results: ConvergenceResults,
     title_prefix: Optional[str] = None,
     ylog: bool = False,
+    label_raw: str = 'UHF State',
+    label_spin: str = 'UHF State Spin Recovered',
 ):
     """
     Create and save convergence comparison plot.
@@ -411,7 +413,7 @@ def plot_convergence_comparison(
         conv_results.df['subspace_size'],
         conv_results.df['qsci_energy'],
         'o-',
-        label='UHF State',
+        label=label_raw,
         linewidth=2,
         markersize=4,
         color='#0072B2',
@@ -426,7 +428,7 @@ def plot_convergence_comparison(
         df_symm['subspace_size'],
         df_symm['spin_symm_energy'],
         '^-',
-        label='UHF State Spin Recovered',
+        label=label_spin,
         linewidth=2,
         markersize=4,
         color='#D55E00',
@@ -490,6 +492,8 @@ def plot_energy_vs_samples(
     conv_results: ConvergenceResults,
     title_prefix: Optional[str] = None,
     ylog: bool = False,
+    label_raw: str = 'UHF State',
+    label_spin: str = 'UHF State Spin Recovered',
 ):
     """
     Create and save energy vs mean-sample-number plot.
@@ -542,7 +546,7 @@ def plot_energy_vs_samples(
     ax.semilogx(
         ms_raw,
         list(conv_results.df['qsci_energy']), 'o-',
-        label='UHF State',
+        label=label_raw,
         linewidth=2,
         markersize=4,
         color='#0072B2',
@@ -554,7 +558,7 @@ def plot_energy_vs_samples(
         ax.semilogx(
             ms_symm,
             list(df_symm['spin_symm_energy']), 's-',
-            label='UHF State Spin Recovered',
+            label=label_spin,
             linewidth=2,
             markersize=4,
             color='#D55E00',
@@ -770,13 +774,18 @@ def plot_statevector_coefficients(
     ax.bar(x, qsci_coefs, width, label='QSCI', color='purple', alpha=0.8)
     ax.bar(x + width, qsci_symm_coefs, width, label='QSCI (Spin Recovered)', color='#D55E00', alpha=0.8)
 
-    ax.set_xlabel('Configuration Index (sorted by FCI amplitude)', fontsize=12)
+    # X-axis labels should be the computational basis bitstrings (zero-padded to n_qubits)
+    n_qubits = int(log2(len(fci_vec))) if len(fci_vec) > 0 else 0
+    bitstring_labels = [format(i, f"0{n_qubits}b") for i in top_indices]
+
+    ax.set_xlabel('Computational basis state', fontsize=12)
     ax.set_ylabel('|Coefficient|', fontsize=12)
     if ylog:
         ax.set_yscale('log')
     ax.set_title(f'Top {n_top} Configuration Coefficients', fontsize=14, fontweight='bold')
     ax.set_xticks(x)
-    ax.set_xticklabels([f'{i}' for i in top_indices], rotation=45, ha='right')
+    # Angle the bitstring labels slightly for readability
+    ax.set_xticklabels(bitstring_labels, rotation=35, ha='right')
     ax.legend(fontsize=11)
     ax.grid(True, alpha=0.3, axis='y')
 
