@@ -4,6 +4,8 @@ Ensure the statevector after orbital rotation gives the same energy and spin
 as the input UHF state.
 """
 
+from pathlib import Path
+
 import numpy as np
 import seaborn as sns
 from matplotlib import pyplot as plt
@@ -36,7 +38,9 @@ def main():
     qsci_subspace_dims = []
     bond_lengths = []
 
-    for bond_length in np.linspace(2, 2.5, 2):
+    data_dir = Path(__file__).parent / 'data'
+
+    for bond_length in np.linspace(0.5, 3, 21):
         print(f"Running bond length: {bond_length:.2f} Angstrom")
         mol = build_h6_lattice(bond_length)
         rhf = scf.RHF(mol).run()
@@ -80,8 +84,7 @@ def main():
     ax2.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    # plt.savefig('figures/h6_lattice_energies.png', dpi=300, bbox_inches='tight')
-    # plt.show()
+    plt.savefig(data_dir / 'h6_lattice_energies.png', dpi=300, bbox_inches='tight')
 
     print("\nPlot saved as 'figures/h6_lattice_energies.png'")
 
