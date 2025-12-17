@@ -358,6 +358,7 @@ def statevector_coefficients(
     data_dir: Path,
     n_top: int = 20,
     ylog: bool = False,
+    title: Optional[str] = None,
 ):
     """
     Plot comparison of QSCI, spin-recovered QSCI, and FCI statevector coefficients.
@@ -412,11 +413,19 @@ def statevector_coefficients(
     bitstring_labels = [format(i, f"0{n_qubits}b") for i in top_indices]
     occupation_labels = [_occupation_vector(x) for x in bitstring_labels]
 
-    ax.set_xlabel('Computational basis state', fontsize=12)
+    ax.set_xlabel('Electron configuration', fontsize=12)
     ax.set_ylabel('|Coefficient|', fontsize=12)
+
+    if title is None:
+        title = f'Top {n_top} Configuration Coefficients'
+    ax.set_title(
+        f'Top {n_top} Configuration Coefficients',
+        fontsize=14,
+        fontweight='bold',
+    )
+
     if ylog:
         ax.set_yscale('log')
-    ax.set_title(f'Top {n_top} Configuration Coefficients', fontsize=14, fontweight='bold')
     ax.set_xticks(x)
     # Angle the bitstring labels slightly for readability
     ax.set_xticklabels(occupation_labels, rotation=35, ha='right')
@@ -479,13 +488,15 @@ def _occupation_vector(bitstring: str) -> str:
     n = len(bitstring)
     alpha, beta = bitstring[:n//2], bitstring[n//2:]
     occ_vec = ''
-    for i in range(n):
+    for i in range(n//2):
         if alpha[i] == '1' and beta[i] == '1':
             occ_vec += '2'
         elif alpha[i] == '1':
-            occ_vec += '\u03b1'
+            occ_vec += '\u03b1' # alpha unicode
         elif beta[i] == '1':
-            occ_vec += '\u03b2'
+            occ_vec += '\u03b2' # beta unicode
         else:
             occ_vec += '0'
+    occ_vec = occ_vec[::-1] # reverse qubit order to chemistry convention
+    occ_vec = '|' + occ_vec + '\u27e9' # ket unicode
     return occ_vec
