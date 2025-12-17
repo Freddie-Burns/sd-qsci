@@ -224,6 +224,8 @@ def calc_qsci_energy_with_size(
     n_configs: int,
     return_vector: bool = False,
     spin_symmetry: bool = False,
+    enforce_singlet: bool = False,
+    singlet_tol: float = 1e-6,
 ):
     """
     Compute QSCI energy by diagonalising Hamiltonian in a subspace.
@@ -261,14 +263,33 @@ def calc_qsci_energy_with_size(
 
     H_sub = H[np.ix_(idx, idx)]
 
+    # Solve for several lowest eigenpairs if we need to enforce singlet
     if H_sub.shape[0] <= 2:
-        eigenvalues, eigenvectors = eigh(H_sub.toarray() if hasattr(H_sub, 'toarray') else H_sub)
-        E0 = float(np.min(eigenvalues))
-        psi0 = eigenvectors[:, 0]
+        evals, evecs = eigh(H_sub.toarray() if hasattr(H_sub, 'toarray') else H_sub)
+        # eigh returns sorted ascending
+        candidates = [(float(evals[i]), evecs[:, i]) for i in range(len(evals))]
     else:
-        vals, vecs = eigsh(H_sub, k=1, which='SA')
-        E0 = float(vals[0])
-        psi0 = vecs[:, 0]
+        k = 1 if not enforce_singlet else min(max(2, 5), H_sub.shape[0] - 1)
+        vals, vecs = eigsh(H_sub, k=k, which='SA')
+        # Sort candidates by ascending energy
+        order = np.argsort(vals)
+        candidates = [(float(vals[i]), vecs[:, i]) for i in order]
+
+    # Default to the very lowest
+    E0, psi0 = candidates[0]
+
+    if enforce_singlet:
+        # Build S^2 operator for the full space and test candidates
+        n_bits = int(log2(len(data)))
+        n_spatial = n_bits // 2
+        S2 = spin.total_spin_S2(n_spatial)
+        for E, psi_sub in candidates:
+            psi_full = np.zeros(data.shape, dtype=complex)
+            psi_full[idx] = psi_sub
+            s2 = spin.expectation(S2, psi_full)
+            if abs(s2.real) <= singlet_tol:
+                E0, psi0 = E, psi_sub
+                break
 
     if return_vector:
         psi0_full = np.zeros(data.shape, dtype=complex)

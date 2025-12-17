@@ -1,9 +1,11 @@
 import numpy as np
+from math import log2
 from pyscf import fci
 from scipy.linalg import eigh
 from scipy.sparse import csr_matrix
 from scipy.sparse.linalg import eigsh
 from qiskit.quantum_info import Statevector
+from sd_qsci import spin
 
 
 def fci_energy(rhf):
@@ -25,7 +27,12 @@ def fci_energy(rhf):
     return fci_energy
 
 
-def qsci_energy(H: csr_matrix, statevector: Statevector):
+def qsci_energy(
+    H: csr_matrix,
+    statevector: Statevector,
+    enforce_singlet: bool = False,
+    singlet_tol: float = 1e-6,
+):
     """
     Calculate Quantum Subspace Configuration Interaction (QSCI) energy.
 
@@ -56,12 +63,30 @@ def qsci_energy(H: csr_matrix, statevector: Statevector):
     idx = np.argwhere(np.abs(statevector.data) > 1e-12).ravel()
     H_sub = H[np.ix_(idx, idx)]
 
-    # Handle small matrices where eigsh would fail
+    # Gather candidates
     if H_sub.shape[0] <= 2:
-        eigenvalues, eigenvectors = eigh(H_sub.toarray())
-        E0 = eigenvalues[0]
+        evals, evecs = eigh(H_sub.toarray())
+        candidates = [(float(evals[i]), evecs[:, i]) for i in range(len(evals))]
     else:
-        E0, psi0 = eigsh(H_sub, k=1, which='SA')
-        E0 = E0[0]
+        k = 1 if not enforce_singlet else min(max(2, 5), H_sub.shape[0] - 1)
+        vals, vecs = eigsh(H_sub, k=k, which='SA')
+        order = np.argsort(vals)
+        candidates = [(float(vals[i]), vecs[:, i]) for i in order]
+
+    # Default selection
+    E0, psi0_sub = candidates[0]
+
+    if enforce_singlet:
+        n_bits = int(log2(len(statevector.data)))
+        n_spatial = n_bits // 2
+        S2 = spin.total_spin_S2(n_spatial)
+        full_dim = len(statevector.data)
+        for E, psi_sub in candidates:
+            psi_full = np.zeros(full_dim, dtype=complex)
+            psi_full[idx] = psi_sub
+            s2 = spin.expectation(S2, psi_full)
+            if abs(s2.real) <= singlet_tol:
+                E0, psi0_sub = E, psi_sub
+                break
 
     return E0, idx
