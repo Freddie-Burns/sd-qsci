@@ -98,6 +98,8 @@ def calc_convergence_data(
     subspace_sizes = list(range(1, max_size + 1))
     qsci_energies = []
     symm_energies = []
+    qsci_S2_vals = []
+    symm_S2_vals = []
     fci_subspace_energies = []
     mean_sample_numbers = []
 
@@ -114,11 +116,25 @@ def calc_convergence_data(
     else:
         data = qc_results.sv.data
 
+    # Build S^2 once for this system
+    n_bits = int(log2(len(qc_results.sv.data)))
+    n_spatial = n_bits // 2
+    S2 = spin.total_spin_S2(n_spatial)
+
     for size in subspace_sizes:
-        qsci_energy = calc_qsci_energy_with_size(qc_results.H, qc_results.sv.data, size)
-        symm_energy = calc_qsci_energy_with_size(qc_results.H, qc_results.spin_symm_amp, size)
+        # Plain QSCI
+        qsci_energy, psi_plain, _ = calc_qsci_energy_with_size(
+            qc_results.H, qc_results.sv.data, size, return_vector=True
+        )
         qsci_energies.append(qsci_energy)
+        qsci_S2_vals.append(float(spin.expectation(S2, psi_plain).real))
+
+        # Spin-symmetric QSCI (diagonalise on spin-symmetrised amplitudes)
+        symm_energy, psi_symm, _ = calc_qsci_energy_with_size(
+            qc_results.H, qc_results.spin_symm_amp, size, return_vector=True
+        )
         symm_energies.append(symm_energy)
+        symm_S2_vals.append(float(spin.expectation(S2, psi_symm).real))
 
         fci_sub_energy = calc_fci_subspace_energy(qc_results.H, qc_results.fci_vec, size)
         fci_subspace_energies.append(fci_sub_energy)
@@ -140,7 +156,9 @@ def calc_convergence_data(
     df = pd.DataFrame({
         'subspace_size': subspace_sizes,
         'qsci_energy': qsci_energies,
+        'qsci_S2': qsci_S2_vals,
         'spin_symm_energy': symm_energies,
+        'spin_symm_S2': symm_S2_vals,
         'fci_subspace_energy': fci_subspace_energies,
         'mean_sample_number': mean_sample_numbers
     })
@@ -263,33 +281,16 @@ def calc_qsci_energy_with_size(
 
     H_sub = H[np.ix_(idx, idx)]
 
-    # Solve for several lowest eigenpairs if we need to enforce singlet
-    if H_sub.shape[0] <= 2:
+    # Solve for the lowest eigenpair only (singlet enforcement removed in analysis)
+    N = H_sub.shape[0]
+    if N <= 3:
         evals, evecs = eigh(H_sub.toarray() if hasattr(H_sub, 'toarray') else H_sub)
-        # eigh returns sorted ascending
-        candidates = [(float(evals[i]), evecs[:, i]) for i in range(len(evals))]
+        E0 = float(evals[0])
+        psi0 = evecs[:, 0]
     else:
-        k = 1 if not enforce_singlet else min(max(2, 5), H_sub.shape[0] - 1)
-        vals, vecs = eigsh(H_sub, k=k, which='SA')
-        # Sort candidates by ascending energy
-        order = np.argsort(vals)
-        candidates = [(float(vals[i]), vecs[:, i]) for i in order]
-
-    # Default to the very lowest
-    E0, psi0 = candidates[0]
-
-    if enforce_singlet:
-        # Build S^2 operator for the full space and test candidates
-        n_bits = int(log2(len(data)))
-        n_spatial = n_bits // 2
-        S2 = spin.total_spin_S2(n_spatial)
-        for E, psi_sub in candidates:
-            psi_full = np.zeros(data.shape, dtype=complex)
-            psi_full[idx] = psi_sub
-            s2 = spin.expectation(S2, psi_full)
-            if abs(s2.real) <= singlet_tol:
-                E0, psi0 = E, psi_sub
-                break
+        vals, vecs = eigsh(H_sub, k=1, which='SA')
+        E0 = float(vals[0])
+        psi0 = vecs[:, 0]
 
     if return_vector:
         psi0_full = np.zeros(data.shape, dtype=complex)
@@ -422,6 +423,28 @@ def save_convergence_data(
     Path(data_dir).mkdir(parents=True, exist_ok=True)
     conv_results.df.to_csv(Path(data_dir) / 'h6_qsci_convergence.csv', index=False)
 
+    # Chemical accuracy tolerance (in Hartree)
+    CHEM_ACCURACY_TOL = 1.6e-3
+
+    # Compute first subspace sizes that reach chemical accuracy for both series
+    df = conv_results.df
+    fci_E = qc_results.fci_energy
+
+    qsci_abs_diff = (df['qsci_energy'] - fci_E).abs()
+    spin_abs_diff = (df['spin_symm_energy'] - fci_E).abs() if 'spin_symm_energy' in df.columns else None
+
+    def first_size_within_tol(abs_diff_series, sizes, tol):
+        mask = abs_diff_series <= tol
+        if mask.any():
+            return int(sizes[mask].iloc[0])
+        return 'Never'
+
+    n_configs_chemacc_qsci = first_size_within_tol(qsci_abs_diff, df['subspace_size'], CHEM_ACCURACY_TOL)
+    n_configs_chemacc_spin = (
+        first_size_within_tol(spin_abs_diff, df['subspace_size'], CHEM_ACCURACY_TOL)
+        if spin_abs_diff is not None else 'N/A'
+    )
+
     summary_data = {
         'bond_length': qc_results.bond_length,
         'rhf_energy': qc_results.rhf.e_tot,
@@ -432,7 +455,10 @@ def save_convergence_data(
         'n_configs_reach_fci': conv_results.n_configs_reach_fci if conv_results.n_configs_reach_fci else 'Never',
         'max_subspace_size': conv_results.max_size,
         'min_qsci_energy': conv_results.df['qsci_energy'].min(),
-        'energy_diff_to_fci': conv_results.df['qsci_energy'].min() - qc_results.fci_energy
+        'energy_diff_to_fci': conv_results.df['qsci_energy'].min() - qc_results.fci_energy,
+        'chemical_accuracy_tol': CHEM_ACCURACY_TOL,
+        'n_configs_chemacc_qsci': n_configs_chemacc_qsci,
+        'n_configs_chemacc_spin_symm': n_configs_chemacc_spin,
     }
     summary_df = pd.DataFrame(list(summary_data.items()), columns=['quantity', 'value'])
     summary_df.to_csv(Path(data_dir) / 'h6_summary.csv', index=False)

@@ -64,11 +64,16 @@ def qsci_energy(
     H_sub = H[np.ix_(idx, idx)]
 
     # Gather candidates
-    if H_sub.shape[0] <= 2:
+    N = H_sub.shape[0]
+    if N <= 3:
         evals, evecs = eigh(H_sub.toarray())
         candidates = [(float(evals[i]), evecs[:, i]) for i in range(len(evals))]
     else:
-        k = 1 if not enforce_singlet else min(max(2, 5), H_sub.shape[0] - 1)
+        # Ensure ARPACK constraint 1 <= k < N-1
+        if enforce_singlet:
+            k = min(max(2, 5), max(1, N - 2))
+        else:
+            k = 1
         vals, vecs = eigsh(H_sub, k=k, which='SA')
         order = np.argsort(vals)
         candidates = [(float(vals[i]), vecs[:, i]) for i in order]
