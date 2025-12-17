@@ -79,6 +79,7 @@ from pathlib import Path
 import numpy as np
 from pyscf import gto, scf
 
+from sd_qsci import plot
 from sd_qsci import analysis, circuit
 from sd_qsci.utils import uhf_from_rhf
 
@@ -118,8 +119,8 @@ def run_full_analysis(bond_length, n_atoms):
     analysis.save_convergence_data(data_dir, qc_results, conv_results)
 
     # Create plots
-    analysis.plot_energy_vs_samples(data_dir, qc_results, conv_results)
-    analysis.plot_convergence_comparison(data_dir, qc_results, conv_results, ylog=True)
+    plot.energy_vs_samples(data_dir, qc_results, conv_results)
+    plot.convergence_comparison(data_dir, qc_results, conv_results, ylog=True)
 
     # Compute final QSCI wavefunction and plot coefficients
     print(f"\nComputing QSCI ground state wavefunction with {conv_results.max_size} configurations...")
@@ -129,13 +130,13 @@ def run_full_analysis(bond_length, n_atoms):
         conv_results.max_size, return_vector=True,
     )
 
-    analysis.plot_statevector_coefficients(
+    plot.statevector_coefficients(
         qc_results.sv.data,
         qc_results.fci_vec,
         data_dir,
         n_top=20,
     )
-    analysis.plot_total_spin_vs_subspace(
+    plot.total_spin_vs_subspace(
         data_dir=data_dir,
         qc_results=qc_results,
         conv_results=conv_results,

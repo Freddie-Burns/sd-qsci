@@ -78,6 +78,7 @@ from pathlib import Path
 import numpy as np
 from pyscf import gto, scf
 
+from sd_qsci import plot
 from sd_qsci import analysis
 
 # Script-specific tolerances
@@ -107,14 +108,14 @@ def main():
     analysis.save_convergence_data(data_dir, qc_results, conv_results)
 
     # Create plots
-    analysis.plot_energy_vs_samples(data_dir, qc_results, conv_results)
-    analysis.plot_convergence_comparison(data_dir, qc_results, conv_results)
+    plot.energy_vs_samples(data_dir, qc_results, conv_results)
+    plot.convergence_comparison(data_dir, qc_results, conv_results)
 
     # Compute final QSCI wavefunction and plot coefficients
     print(f"\nComputing QSCI ground state wavefunction with {conv_results.max_size} configurations...")
     qsci_energy_final, qsci_vec, qsci_indices = analysis.calc_qsci_energy_with_size(
         qc_results.H, qc_results.sv, conv_results.max_size, return_vector=True)
-    analysis.plot_statevector_coefficients(qc_results.sv.data, qc_results.fci_vec, data_dir, n_top=20)
+    plot.statevector_coefficients(qc_results.sv.data, qc_results.fci_vec, data_dir, n_top=20)
 
     # Print summary
     print_summary(data_dir, qc_results, conv_results, qsci_energy_final)
