@@ -1,57 +1,15 @@
-# Todo: skip non-singlet states rather than finding next lowest energy.
-
-"""
-H6 spin-symmetric QSCI: singlet-enforcement comparison
-======================================================
-
-Purpose
--------
-Compare spin-symmetric QSCI energies obtained without and with explicit
-singlet enforcement when diagonalising the Hamiltonian in an amplitude-
-selected subspace for a 6-hydrogen chain at a fixed bond length.
-
-What this script does
----------------------
-1. Runs RHF, UHF and FCI with PySCF for H6 (STO-3G).
-2. Builds the UHF statevector via the orbital-rotation circuit and computes
-   its spin-symmetrised amplitudes.
-3. Baseline: reproduces the usual convergence analysis (no singlet enforcing)
-   for both plain QSCI and spin-symmetric QSCI.
-4. New comparison: for the same subspace sizes, recomputes the spin-symmetric
-   QSCI energies but enforces a spin singlet by checking ⟨S²⟩ ≈ 0 and rejecting
-   non‑singlet eigenvectors.
-
-Outputs
--------
-Baseline (unchanged):
-- h6_qsci_convergence.csv, h6_summary.csv
-- h6_qsci_convergence.png, h6_energy_vs_samples.png
-- statevector_coefficients.png, statevector_coefficients_full.png
-
-New comparison artifacts:
-- spin_symm/spin_symm_enforce_compare.csv: spin-symmetric energies with and
-  without enforcing singlet, across subspace sizes.
-- spin_symm_enforce_compare.png: plot showing both spin-symmetric series plus
-  reference UHF/FCI lines.
-
-Notes
------
-- Singlet enforcing is applied only to the spin-symmetric series; the input
-  amplitudes are already spin-symmetrised, so the diagonalisation uses those
-  directly and verifies ⟨S²⟩ ≈ 0 within a tolerance.
-- BLOCK spin ordering: [α0…α(M−1), β0…β(M−1)].
-"""
 
 
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
+import seaborn
 import seaborn as sns
 from matplotlib import pyplot as plt
 from pyscf import gto, scf
 
-from sd_qsci import analysis, circuit, plot
+from sd_qsci import analysis, circuit
+from sd_qsci.greedy import greedy_from_results
 from sd_qsci.utils import uhf_from_rhf
 
 
@@ -75,94 +33,86 @@ def run_full_analysis(bond_length, n_atoms):
     rhf = scf.RHF(mol).run()
     qc_results = analysis.run_quantum_chemistry_calculations(mol, rhf, bond_length)
 
-    # Calculate convergence data (baseline: without singlet enforcing)
+    # Calculate convergence data with spin symmetry recovery
     conv_results = analysis.calc_convergence_data(qc_results, spin_symm=True)
 
     # Save data to CSV
     analysis.save_convergence_data(data_dir, qc_results, conv_results)
 
-    # Create plots for baseline
-    plot.energy_vs_samples(data_dir, qc_results, conv_results)
-    plot.convergence_comparison(data_dir, qc_results, conv_results, ylog=True)
-
-    # Compare spin-symmetric QSCI with and without singlet enforcing
-    # We'll sweep the same subspace sizes as in conv_results and compute a second
-    # energy series where we enforce the singlet condition when selecting the
-    # eigenvector from the subspace diagonalisation.
-    subspace_sizes = conv_results.df['subspace_size'].tolist()
-    spin_symm_no_enforce = conv_results.df['spin_symm_energy'].tolist()
-    spin_symm_enforced = []
-
-    for size in subspace_sizes:
-        e_enf = analysis.calc_qsci_energy_with_size(
-            qc_results.H,
-            qc_results.spin_symm_amp,  # already spin-symmetric amplitudes
-            size,
-            return_vector=False,
-            spin_symmetry=False,       # data is already spin symmetrised
-            enforce_singlet=True,
-            singlet_tol=1e-6,
-        )
-        spin_symm_enforced.append(e_enf)
-
-    # Save comparison CSV
-    df_compare = pd.DataFrame({
-        'subspace_size': subspace_sizes,
-        'spin_symm_energy_no_enforce': spin_symm_no_enforce,
-        'spin_symm_energy_enforced': spin_symm_enforced,
-    })
-    (data_dir / 'spin_symm').mkdir(parents=True, exist_ok=True)
-    df_compare.to_csv(data_dir / 'spin_symm' / 'spin_symm_enforce_compare.csv', index=False)
-
-    # Plot comparison
-    sns.set_context('talk')
-
+    # Plot only FCI subspace energy and spin‑symmetric QSCI energy vs subspace size
+    sns.set_style()
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(subspace_sizes, spin_symm_no_enforce, label='Spin-symm QSCI (no enforce)', color='tab:orange')
-    ax.plot(subspace_sizes, spin_symm_enforced, label='Spin-symm QSCI (enforce singlet)', color='tab:blue')
-    ax.axhline(qc_results.fci_energy, color='green', linestyle='--', linewidth=1.2, label='FCI')
-    ax.axhline(qc_results.uhf.e_tot, color='red', linestyle=':', linewidth=1.0, label='UHF')
 
+    df = conv_results.df.copy()
+
+    # Greedy energy curve (based on FCI amplitudes thresholded by 1e-5)
+    k_max = int(df['subspace_size'].max())
+    _, greedy_energies = greedy_from_results(qc_results, k_max=k_max, amp_thresh=1e-5)
+    x_greedy = np.arange(1, len(greedy_energies) + 1)
+
+    # Prepare data series
+    x_vals = df['subspace_size']
+    fci_err = df['fci_subspace_energy'] - qc_results.fci_energy
+    qsci_err = df['qsci_energy'] - qc_results.fci_energy
+    greedy_err = np.asarray(greedy_energies) - qc_results.fci_energy
+
+    # Use viridis colormap for the two series
+    # cmap = plt.get_cmap('viridis')
+    # color_fci = cmap(0.2)
+    # color_qsci = cmap(0.8)
+
+    ax.plot(
+        x_vals,
+        fci_err,
+        's-',
+        label='FCI subspace',
+        linewidth=2,
+        markersize=4,
+        # color=color_fci,
+    )
+    ax.plot(
+        x_vals,
+        qsci_err,
+        '^-',
+        label='QSCI',
+        linewidth=2,
+        markersize=4,
+        # color=color_qsci,
+    )
+    ax.plot(
+        x_greedy,
+        greedy_err,
+        'o-',
+        label='Greedy (FCI-guided)',
+        linewidth=2,
+        markersize=4,
+    )
+
+    # Use a logarithmic-like scale on Y. Energies can be negative, so use
+    # symmetric log to preserve sign while providing log scaling around zero.
+    ax.set_yscale('log')
     ax.set_xlabel('Subspace size (number of configurations)')
-    ax.set_ylabel('Energy (Ha)')
-    ax.set_title('Spin-symmetric QSCI: with vs without singlet enforcing')
+    ax.set_ylabel('Energy error (Ha)')
+
+    # Shade region below chemical accuracy threshold (1.6e-3 Ha)
+    # and ensure the y-axis minimum is 1e-4.
+    ax.axhspan(1e-4, 1.6e-3, facecolor='0.5', alpha=0.15, label='Chemical accuracy')
+
+    # Set axis limits based on data (include greedy coverage)
+    x_min, x_max_val = np.nanmin(x_vals), max(np.nanmax(x_vals), np.max(x_greedy))
+    ax.set_xlim(left=x_min, right=x_max_val)
+
+    # Upper y-limit should be the highest data point across all series
+    y_top = np.nanmax(np.concatenate([fci_err.values, qsci_err.values, greedy_err]))
+    ax.set_ylim(bottom=1e-4, top=y_top)
+    ax.set_title('Energy error vs subspace size: H6 chain at 2A bond length')
     ax.legend()
     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
     data_dir.mkdir(parents=True, exist_ok=True)
-    plt.savefig(data_dir / 'spin_symm_enforce_compare.png', dpi=300, bbox_inches='tight')
+    plt.savefig(data_dir / 'fci_vs_qsci_spin.png', dpi=300, bbox_inches='tight')
     plt.close(fig)
-
-    # Compute final QSCI wavefunction and plot coefficients
-    print(f"\nComputing QSCI ground state wavefunction with {conv_results.max_size} configurations...")
-    qsci_energy_final, qsci_vec, qsci_indices = analysis.calc_qsci_energy_with_size(
-        qc_results.H,
-        qc_results.sv,
-        conv_results.max_size, return_vector=True,
-    )
-
-    plot.statevector_coefficients(
-        qc_results.sv.data,
-        qc_results.fci_vec,
-        data_dir,
-        n_top=20,
-    )
-    plot.total_spin_vs_subspace(
-        data_dir=data_dir,
-        qc_results=qc_results,
-        conv_results=conv_results,
-        title_prefix="H6 Chain",
-    )
-
-    # Print summary and note enforced vs non-enforced minima for spin-symmetric series
-    print_summary(data_dir, qc_results, conv_results, qsci_energy_final)
-    min_no_enf = float(np.min(spin_symm_no_enforce))
-    min_enf = float(np.min(spin_symm_enforced))
-    print("\nSpin-symmetric QSCI comparison:")
-    print(f"  Min without enforcing: {min_no_enf:.8f} Ha")
-    print(f"  Min with enforcing   : {min_enf:.8f} Ha")
-    print(f"  Difference (enf - no): {min_enf - min_no_enf:+.2e} Ha")
 
 
 def print_top_configs(bond_length=2, n_atoms=6):
