@@ -80,7 +80,8 @@ def greedy_best_subspace(
     # Iteration 1: pick determinant with minimal diagonal energy among candidates
     first_idx = int(min(candidates, key=lambda i: diag[i]))
     selected.append(first_idx)
-    energies.append(float(diag[first_idx]))
+    # Use the real part explicitly to avoid ComplexWarning if H has complex dtype
+    energies.append(float(np.real(diag[first_idx])))
 
     # Remaining iterations
     while len(selected) < k_target:
