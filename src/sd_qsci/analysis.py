@@ -14,6 +14,8 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 from pyscf import gto, fci, scf
+from qiskit import QuantumCircuit, transpile
+from qiskit_aer import Aer
 from scipy.linalg import eigh
 from scipy.sparse.linalg import eigsh
 from qiskit.quantum_info import Statevector
@@ -43,6 +45,9 @@ class QuantumChemistryResults:
       fci_vec: np.ndarray (full Fock-space FCI vector)
       bond_length: float | None
       spin_symm_amp: np.ndarray | None (spin-symmetric amplitudes)
+      n_qubits: int | None
+      one_q_gates: int | None
+      two_q_gates: int | None
     """
     mol: gto.Mole
     rhf: scf.RHF
@@ -54,6 +59,10 @@ class QuantumChemistryResults:
     fci_vec: np.ndarray
     bond_length: Optional[float] = None
     spin_symm_amp: Optional[np.ndarray] = None
+    # Optional metadata about the state preparation circuit
+    n_qubits: Optional[int] = None
+    one_q_gates: Optional[int] = None
+    two_q_gates: Optional[int] = None
 
 
 @dataclass
@@ -385,6 +394,8 @@ def run_quantum_chemistry_calculations(
         raise RuntimeError("Orbital rotation verification failed: statevector energy != UHF energy")
 
     fci_energy, n_fci_configs, fci_vec = calc_fci_energy(rhf)
+    n_qubits = int(getattr(qc, 'num_qubits', 0))
+    one_q_gates, two_q_gates = count_gates(qc)
 
     return QuantumChemistryResults(
         mol=mol,
@@ -397,6 +408,9 @@ def run_quantum_chemistry_calculations(
         fci_vec=fci_vec,
         bond_length=bond_length,
         spin_symm_amp=spin_symm_amp,
+        n_qubits=n_qubits,
+        one_q_gates=one_q_gates,
+        two_q_gates=two_q_gates,
     )
 
 
@@ -460,6 +474,15 @@ def save_convergence_data(
         'n_configs_chemacc_qsci': n_configs_chemacc_qsci,
         'n_configs_chemacc_spin_symm': n_configs_chemacc_spin,
     }
+    # Optionally include circuit gate counts if available
+    if qc_results.n_qubits is not None:
+        summary_data['n_qubits'] = int(qc_results.n_qubits)
+    if qc_results.one_q_gates is not None:
+        summary_data['one_q_gates'] = int(qc_results.one_q_gates)
+    if qc_results.two_q_gates is not None:
+        summary_data['two_q_gates'] = int(qc_results.two_q_gates)
+    if qc_results.total_gates is not None:
+        summary_data['total_gates'] = int(qc_results.total_gates)
     summary_df = pd.DataFrame(list(summary_data.items()), columns=['quantity', 'value'])
     summary_df.to_csv(Path(data_dir) / 'h6_summary.csv', index=False)
 
@@ -557,6 +580,26 @@ def spin_closed_subspace_sizes(sv_data: np.ndarray) -> list[int]:
         sizes.append(len(selected))
 
     return sizes
+
+
+def count_gates(qc: QuantumCircuit) -> tuple[int, int]:
+    """
+    Count the number of single-qubit and two-qubit operations in a transpiled
+    Qiskit QuantumCircuit.
+    """
+    tqc = transpile(
+        qc,
+        backend=Aer.get_backend("aer_simulator"),
+        basis_gates=['rz', 'sx', 'cx'],
+        optimization_level=3
+    )
+    one_q = two_q = 0
+    for instr, qargs, _ in tqc.data:
+        if len(qargs) == 1:
+            one_q += 1
+        elif len(qargs) == 2:
+            two_q += 1
+    return one_q, two_q
 
 
 __all__ = [

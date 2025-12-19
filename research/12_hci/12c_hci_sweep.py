@@ -159,7 +159,8 @@ def hci_sweep(ham, occs, eps_values: List[float], outdir: Path, e_ref_ha: Option
     max_err = None
     for eps, series in all_series:
         ndets = [nd for (_, nd, __) in series]
-        errs = [abs(e - e_ref_ha) for (_, __, e) in series]
+        # Signed variational error vs reference (should be ≥ 0)
+        errs = [(e - e_ref_ha) for (_, __, e) in series]
         ax.plot(ndets, errs, marker="o", linewidth=1.5, markersize=3, label=f"eps={eps:.1e}")
         smin = min(errs)
         smax = max(errs)

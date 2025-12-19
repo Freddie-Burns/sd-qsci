@@ -14,3 +14,10 @@ wheels/
 
 # Environment variables
 .env
+
+# Font files
+*.ttf
+
+# Matplotlib configuration
+research/matplotlibrc
+research/mpl_fonts.py
