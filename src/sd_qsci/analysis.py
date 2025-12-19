@@ -205,7 +205,7 @@ def calc_fci_energy(rhf, tol: float = 1e-10) -> tuple[float, int, np.ndarray]:
     return fci_energy, n_configs, fci_vec
 
 # Todo move to comparison directory
-def calc_fci_subspace_energy(H, fci_vec, n_configs: int):
+def calc_fci_subspace_energy(H: np.ndarray, fci_vec: np.ndarray, n_configs: int):
     """
     Energy of subspace spanned by the n_configs largest-amplitude FCI configurations.
 
