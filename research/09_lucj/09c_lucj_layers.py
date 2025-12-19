@@ -3,7 +3,7 @@ LUCJ layers study (09c)
 -----------------------
 
 Plot log energy error to FCI for LUCJ circuits with layers 1–10 against
-increasing subspace size (spin-symmetric QSCI), using a plasma colormap and a
+increasing subspace size (spin-symmetric QSCI), using a viridis colormap and a
 lower bound of 1e-5 Ha on the y-axis. Also overlay the FCI subspace absolute
 error curve on the same plot for comparison.
 
@@ -39,7 +39,7 @@ from sd_qsci.utils import uhf_from_rhf
 
 # User-togglable constants
 RECOMPUTE: bool = True  # False skips quantum chemistry and replot from CS
-BOND_LENGTH: float = 2.0
+BOND_LENGTH: float = 1.0
 N_ATOMS: int = 6
 LAYERS: list[int] = list(range(1, 11))  # which LUCJ layer counts to compute
 
@@ -306,7 +306,7 @@ def main():
     greedy_df = pd.read_csv(greedy_csv) if greedy_csv.exists() else pd.DataFrame()
     gates_df = pd.read_csv(gate_counts_csv) if gate_counts_csv.exists() else pd.DataFrame()
 
-    # Plot: log error (spin-symmetric LUCJ-QSCI) vs subspace size, layers colored by plasma
+    # Plot: log error (spin-symmetric LUCJ-QSCI) vs subspace size, layers colored by viridis
     fig, ax = plt.subplots(figsize=(12, 8))
     ax.set_yscale('log')
     ax.set_xlabel('Subspace Size (Number of Configurations)')
@@ -316,42 +316,50 @@ def main():
 
     # Chemical accuracy region (≤ 1.6e-3 Ha): diagonally striped green over light grey
     y0, y1 = 1.0e-5, 1.6e-3
-    try:
-        trans = transforms.blended_transform_factory(ax.transAxes, ax.transData)
-        # Background light grey box
-        bg = patches.Rectangle(
-            (0.0, y0), 1.0, y1 - y0,
-            transform=trans,
-            facecolor='#D0D0D0',
-            edgecolor='none',
-            alpha=0.35,
-            zorder=0,
-        )
-        ax.add_patch(bg)
-        # Green diagonal hatching overlay
-        hat = patches.Rectangle(
-            (0.0, y0), 1.0, y1 - y0,
-            transform=trans,
-            facecolor='none',
-            edgecolor='#2ca02c',  # matplotlib "tab:green"
-            hatch='///',
-            linewidth=0.0,
-            zorder=0,
-        )
-        ax.add_patch(hat)
-        # Proxy artist for legend
-        proxy = patches.Rectangle((0, 0), 1, 1, facecolor='#D0D0D0', edgecolor='#2ca02c', hatch='///', alpha=0.35, label='chemical accuracy')
-        ax.add_artist(proxy)
-    except Exception:
-        # Fallback to simple shaded span if patches/hatching fail in a given backend
-        ax.axhspan(y0, y1, facecolor='#B0B0B0', alpha=0.2, zorder=0, label='chemical accuracy')
+
+    trans = transforms.blended_transform_factory(ax.transAxes, ax.transData)
+    # Background light grey box
+    bg = patches.Rectangle(
+        (0.0, y0), 1.0, y1 - y0,
+        transform=trans,
+        facecolor='#D0D0D0',
+        edgecolor='none',
+        alpha=0.35,
+        zorder=0,
+    )
+    ax.add_patch(bg)
+    # Green diagonal hatching overlay
+    hat = patches.Rectangle(
+        (0.0, y0), 1.0, y1 - y0,
+        transform=trans,
+        facecolor='none',
+        edgecolor='#2ca02c',  # matplotlib "tab:green"
+        hatch='///',
+        linewidth=0.0,
+        zorder=0,
+    )
+    ax.add_patch(hat)
+    # Proxy artist for legend
+    proxy = patches.Rectangle(
+        (0, 0),
+        1,
+        1,
+        facecolor='#D0D0D0',
+        edgecolor='#2ca02c',
+        hatch='///',
+        alpha=0.35,
+        label='chemical accuracy',
+    )
+    ax.add_artist(proxy)
 
     # Plot each available layer for the configured bond length
     df_bl = conv_df[conv_df['bond_length'] == bond_length]
     layers_available = sorted(int(x) for x in df_bl['layer'].unique())
-    cmap = plt.get_cmap('plasma', max(layers_available) if layers_available else 10)
+    cmap = plt.get_cmap('viridis', max(layers_available) if layers_available else 10)
 
     x_min, x_max = None, None
+    # Collect y-data to size the y-axis upper limit a bit above the max
+    y_values_for_ylim = []
     for n_layers in layers_available:
         d = df_bl[df_bl['layer'] == n_layers]
         x = d['subspace_size'].to_numpy()
@@ -364,6 +372,7 @@ def main():
                 color=cmap(n_layers - 1), label=f'{n_layers} layer' + ('s' if n_layers > 1 else ''))
         x_min = int(min(x_min, x.min())) if x_min is not None else int(x.min())
         x_max = int(max(x_max, x.max())) if x_max is not None else int(x.max())
+        y_values_for_ylim.append(float(np.nanmax(y_plot)))
 
     # Also overlay the FCI subspace absolute error curve for the same bond length
     df_bl_fci = fci_df[fci_df['bond_length'] == bond_length]
@@ -383,6 +392,8 @@ def main():
         # expand x-bounds to include FCI curve
         x_min = int(min(x_min, x_fci.min())) if x_min is not None else int(x_fci.min())
         x_max = int(max(x_max, x_fci.max())) if x_max is not None else int(x_fci.max())
+        if y_fci_plot.size:
+            y_values_for_ylim.append(float(np.nanmax(y_fci_plot)))
 
     # Overlay greedy-algorithm absolute error curve (if available)
     df_bl_greedy = greedy_df[greedy_df.get('bond_length') == bond_length] if not greedy_df.empty else pd.DataFrame()
@@ -399,15 +410,48 @@ def main():
         ax.plot(x_gr, y_gr_plot, 'd--', color='#ff7f0e', linewidth=1.8, markersize=4.0, label='Greedy (error)')
         x_min = int(min(x_min, x_gr.min())) if x_min is not None else int(x_gr.min())
         x_max = int(max(x_max, x_gr.max())) if x_max is not None else int(x_gr.max())
+        if y_gr_plot.size:
+            y_values_for_ylim.append(float(np.nanmax(y_gr_plot)))
 
     # Bound x-axis to data range
     if x_min is not None and x_max is not None:
         ax.set_xlim(left=max(1, x_min), right=x_max)
 
-    ax.legend(title='LUCJ layers + FCI + Greedy', fontsize=9)
+    # Set y-limit a little above the maximum of the plotted data
+    try:
+        if y_values_for_ylim:
+            y_max = max(y_values_for_ylim)
+            # choose a modest headroom factor on log-scale
+            headroom = 1.25
+            ax.set_ylim(bottom=1e-5, top=y_max * headroom if y_max * headroom > 1e-5 else 1.1e-5)
+    except Exception:
+        pass
+
+    # Add horizontal dashed reference lines for RHF and UHF absolute errors, if available in CSV
+    try:
+        # Extract representative RHF/UHF/FCI energies for this bond length from convergence CSV
+        df_bl_nonnull = df_bl.dropna(subset=['rhf_energy', 'uhf_energy', 'fci_energy'])
+        if not df_bl_nonnull.empty:
+            rhf_energy = float(df_bl_nonnull['rhf_energy'].iloc[0])
+            uhf_energy = float(df_bl_nonnull['uhf_energy'].iloc[0])
+            fci_energy = float(df_bl_nonnull['fci_energy'].iloc[0])
+            rhf_err = max(abs(rhf_energy - fci_energy), 1e-5)
+            uhf_err = max(abs(uhf_energy - fci_energy), 1e-5)
+            ax.axhline(y=rhf_err, linestyle='--', linewidth=1.6, color='#1f77b4', label=f'RHF |ΔE|')
+            ax.axhline(y=uhf_err, linestyle='--', linewidth=1.6, color='#2ca02c', label=f'UHF |ΔE|')
+            y_values_for_ylim.append(rhf_err)
+            y_values_for_ylim.append(uhf_err)
+    except Exception:
+        pass
+
+    ax.legend(fontsize=9)
     ax.grid(True, which='both', alpha=0.3)
     plt.tight_layout()
-    plt.savefig(out_dir / 'lucj_layers_error_vs_subspace.png', dpi=300, bbox_inches='tight')
+    plt.savefig(
+        out_dir / 'lucj_layers_error_vs_subspace.png', 
+        dpi=300, 
+        bbox_inches='tight',
+    )
     plt.close(fig)
 
     # Plot: gate counts vs layers (from CSV only)
