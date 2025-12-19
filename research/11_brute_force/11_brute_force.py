@@ -54,12 +54,8 @@ def run_full_analysis(bond_length, n_atoms):
     x_vals = df['subspace_size']
     fci_err = df['fci_subspace_energy'] - qc_results.fci_energy
     qsci_err = df['qsci_energy'] - qc_results.fci_energy
+    qsci_symm_err = df['spin_symm_energy'] - qc_results.fci_energy
     greedy_err = np.asarray(greedy_energies) - qc_results.fci_energy
-
-    # Use viridis colormap for the two series
-    # cmap = plt.get_cmap('viridis')
-    # color_fci = cmap(0.2)
-    # color_qsci = cmap(0.8)
 
     ax.plot(
         x_vals,
@@ -68,7 +64,6 @@ def run_full_analysis(bond_length, n_atoms):
         label='FCI subspace',
         linewidth=2,
         markersize=4,
-        # color=color_fci,
     )
     ax.plot(
         x_vals,
@@ -77,7 +72,14 @@ def run_full_analysis(bond_length, n_atoms):
         label='QSCI',
         linewidth=2,
         markersize=4,
-        # color=color_qsci,
+    )
+    ax.plot(
+        x_vals,
+        qsci_symm_err,
+        '^-',
+        label='QSCI spin recovery',
+        linewidth=2,
+        markersize=4,
     )
     ax.plot(
         x_greedy,
