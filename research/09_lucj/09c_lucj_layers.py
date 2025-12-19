@@ -33,7 +33,7 @@ from qiskit_aer import Aer
 from qiskit import transpile
 
 from sd_qsci import analysis, circuit, hamiltonian
-from sd_qsci import greedy as greedy_sel
+from comparison import greedy as greedy_sel
 from sd_qsci.utils import uhf_from_rhf
 
 

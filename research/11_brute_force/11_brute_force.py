@@ -3,13 +3,12 @@
 from pathlib import Path
 
 import numpy as np
-import seaborn
 import seaborn as sns
 from matplotlib import pyplot as plt
 from pyscf import gto, scf
 
 from sd_qsci import analysis, circuit
-from sd_qsci.greedy import greedy_from_results
+from comparison.greedy import greedy_from_results
 from sd_qsci.utils import uhf_from_rhf
 
 
