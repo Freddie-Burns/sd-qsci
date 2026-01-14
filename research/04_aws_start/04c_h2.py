@@ -32,7 +32,6 @@ from sd_qsci.circuit import rhf_uhf_orbital_rotation_circuit
 
 # Qiskit for circuit construction/export
 from qiskit import transpile
-from qiskit.qasm3 import dumps as qasm3_dumps
 
 # AWS Braket
 from braket.circuits import Circuit as BraketCircuit
@@ -191,17 +190,50 @@ def make_qiskit_uhf_rotation_circuit(mol: gto.Mole, rhf: scf.RHF, uhf: scf.UHF):
 
 
 def qiskit_to_braket(qc) -> BraketCircuit:
-    """Transpile to a standard basis, export to OpenQASM3, and import as Braket Circuit."""
-    # Use a common basis supported by QASM and Braket translation
+    """Transpile to a simple basis and translate directly into a Braket Circuit.
+
+    We avoid exporting OpenQASM3 to prevent external include dependencies
+    like `stdgates.inc`. Only maps a small gate set used by the transpiled
+    circuit: rz, sx, x, cx, and measurement. The `sx` gate is implemented as
+    an Rx(pi/2) up to a global phase, which is acceptable for state prep and
+    measurement workflows.
+    """
+    # Transpile to a compact, supported basis
     tqc = transpile(qc, basis_gates=["rz", "sx", "x", "cx"], optimization_level=3)
 
-    # Important: add measurements before export for sampling on SV1
+    # Ensure measurements exist for sampling backends
     if tqc.num_clbits == 0:
         tqc.measure_all()
 
-    qasm3 = qasm3_dumps(tqc)
-    # Braket SDK provides a helper to import OpenQASM 3 programs
-    bkc = BraketCircuit().from_openqasm(qasm3)
+    # Build Braket circuit natively
+    bkc = BraketCircuit()
+    from math import pi
+
+    for instr, qargs, cargs in tqc.data:
+        name = instr.name
+        qubits = [q._index for q in qargs]
+
+        if name == "rz":
+            theta = float(instr.params[0])
+            bkc.rz(qubits[0], theta)
+        elif name == "sx":
+            # sqrt(X) = Rx(pi/2) up to global phase
+            bkc.rx(qubits[0], pi / 2)
+        elif name == "x":
+            bkc.x(qubits[0])
+        elif name in ("cx", "cnot"):
+            bkc.cnot(qubits[0], qubits[1])
+        elif name in ("barrier",):
+            # ignore
+            continue
+        elif name in ("measure",):
+            # We'll add a full measurement at the end (measure_all was applied)
+            continue
+        else:
+            raise ValueError(f"Unsupported gate after transpile: {name}")
+
+    # Finally, measure all qubits to collect counts
+    bkc.measure(range(tqc.num_qubits))
     return bkc
 
 
