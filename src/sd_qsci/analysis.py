@@ -474,15 +474,21 @@ def save_convergence_data(
         'n_configs_chemacc_qsci': n_configs_chemacc_qsci,
         'n_configs_chemacc_spin_symm': n_configs_chemacc_spin,
     }
-    # Optionally include circuit gate counts if available
-    if qc_results.n_qubits is not None:
-        summary_data['n_qubits'] = int(qc_results.n_qubits)
-    if qc_results.one_q_gates is not None:
-        summary_data['one_q_gates'] = int(qc_results.one_q_gates)
-    if qc_results.two_q_gates is not None:
-        summary_data['two_q_gates'] = int(qc_results.two_q_gates)
-    if qc_results.total_gates is not None:
-        summary_data['total_gates'] = int(qc_results.total_gates)
+    # Optionally include circuit gate counts if available (use safe getattr for optional fields)
+    n_qubits = getattr(qc_results, 'n_qubits', None)
+    one_q_gates = getattr(qc_results, 'one_q_gates', None)
+    two_q_gates = getattr(qc_results, 'two_q_gates', None)
+    total_gates = getattr(qc_results, 'total_gates', None)
+
+    if n_qubits is not None:
+        summary_data['n_qubits'] = int(n_qubits)
+    if one_q_gates is not None:
+        summary_data['one_q_gates'] = int(one_q_gates)
+    if two_q_gates is not None:
+        summary_data['two_q_gates'] = int(two_q_gates)
+    # Preserve backward compatibility if some scripts provide total_gates; otherwise omit
+    if total_gates is not None:
+        summary_data['total_gates'] = int(total_gates)
     summary_df = pd.DataFrame(list(summary_data.items()), columns=['quantity', 'value'])
     summary_df.to_csv(Path(data_dir) / 'h6_summary.csv', index=False)
 

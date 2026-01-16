@@ -32,11 +32,11 @@ print(circuit)
 # session = AwsSession(boto_session=boto3.Session(region_name='eu-north-1'))
 session = AwsSession(boto_session=boto3.Session(region_name='us-east-1'))
 device = AwsDevice(
-    # "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
+    "arn:aws:braket:::device/quantum-simulator/amazon/sv1",
     # "arn:aws:braket:us-east-1::device/qpu/ionq/Aria-1",
     # "arn:aws:braket:us-east-1::device/qpu/quera/Aquila",
     # "arn:aws:braket:us-east-1::device/qpu/ionq/Forte-1",
-    "arn:aws:braket:us-west-1::device/qpu/rigetti/Ankaa-3",
+    # "arn:aws:braket:us-west-1::device/qpu/rigetti/Ankaa-3",
     aws_session=session,
 )
 task = device.run(circuit, shots=100)

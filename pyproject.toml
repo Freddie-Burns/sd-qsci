@@ -20,6 +20,7 @@ dependencies = [
     "pytest>=8.4.2",
     "qiskit>=2.2.3",
     "qiskit-aer>=0.17.2",
+    "qiskit-braket-provider>=0.10.0",
     "scipy>=1.16.3",
     "seaborn>=0.13.2",
 ]

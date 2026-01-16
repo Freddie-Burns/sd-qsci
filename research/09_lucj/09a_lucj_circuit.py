@@ -124,6 +124,8 @@ def main():
         qc_results.fci_vec,
         data_dir,
         n_top=20,
+        include_spin_recovered=False,
+        qsci_label='LUCJ',
     )
     plot.total_spin_vs_subspace(
         data_dir=data_dir,
