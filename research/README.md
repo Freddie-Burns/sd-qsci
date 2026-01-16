@@ -77,6 +77,41 @@ At‑a‑glance results
   </figcaption>
 </figure>
 
+<figure>
+  <img src="./09_lucj/data/09a_lucj_circuit/bond_length_2.00/lucj_circuit.png" alt="LUCJ circuit schematic at 2.00 Å" width="65%" />
+  <figcaption>
+    09a LUCJ circuit: example transpiled circuit structure at 2.00 Å (showing alternating orbital‑rotation and Jastrow‑style entangling layers).
+  </figcaption>
+</figure>
+
+<figure>
+  <img src="./09_lucj/data/09a_lucj_circuit/bond_length_2.00/statevector_coefficients.png" alt="LUCJ statevector coefficients (top amplitudes) at 2.00 Å" width="65%" />
+  <figcaption>
+    09a LUCJ amplitudes: leading statevector coefficients after preparing the LUCJ state at 2.00 Å (spin‑symmetric sector).
+  </figcaption>
+</figure>
+
+<figure>
+  <img src="./09_lucj/data/09a_lucj_circuit/bond_length_2.00/h6_energy_vs_samples.png" alt="LUCJ (H6) — energy vs number of QSCI samples at 2.00 Å" width="65%" />
+  <figcaption>
+    09a H6 with LUCJ: energy convergence versus sampled configurations in QSCI at fixed geometry (2.00 Å).
+  </figcaption>
+</figure>
+
+<figure>
+  <img src="./12_hci/data/12c_hci/bond_length_2.00/h6_hci_energy_vs_determinants_by_eps.png" alt="HCI — energy vs number of determinants by epsilon (2.00 Å)" width="65%" />
+  <figcaption>
+    12c HCI sweep: energy versus determinant count for several selection thresholds (ε). Lower ε includes more determinants and approaches the reference.
+  </figcaption>
+</figure>
+
+<figure>
+  <img src="./12_hci/data/12c_hci/bond_length_2.00/h6_hci_error_vs_determinants_by_eps.png" alt="HCI — absolute energy error vs determinants by epsilon (2.00 Å)" width="65%" />
+  <figcaption>
+    12c HCI sweep: absolute energy error (log scale) as a function of determinant count for varying ε, illustrating accuracy–cost trade‑offs.
+  </figcaption>
+</figure>
+
 Groups
 - 00_profile — Line profiling for the RHF→UHF workflow and related utilities. See 00_profile/README.md
 - 01_h4_chain — H4 chain energies (RHF/UHF/FCI/QSCI) and validation of orbital-rotation circuit. See 01_h4_chain/README.md
