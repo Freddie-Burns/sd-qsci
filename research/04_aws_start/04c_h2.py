@@ -31,45 +31,37 @@ from sd_qsci.utils import uhf_from_rhf
 from sd_qsci.circuit import rhf_uhf_orbital_rotation_circuit
 
 # Qiskit for circuit construction/export
-from qiskit import transpile
+from qiskit import transpile, QuantumCircuit
 from qiskit_braket_provider import BraketProvider
-
-# AWS Braket
-from braket.circuits import Circuit as BraketCircuit
-from braket.aws import AwsDevice, AwsSession
-import boto3
 
 
 class BraketDevice(Enum):
-    """Canonical selection of target devices (deduplicated simulators)."""
+    """Canonical selection of target devices (names as used by qiskit-braket-provider)."""
     # us-east-1
-    ARIA_1 = "arn:aws:braket:us-east-1::device/qpu/ionq/Aria-1"
-    AQUILA = "arn:aws:braket:us-east-1::device/qpu/quera/Aquila"
-    FORTE_1 = "arn:aws:braket:us-east-1::device/qpu/ionq/Forte-1"
-    FORTE_ENTERPRISE_1 = "arn:aws:braket:us-east-1::device/qpu/ionq/Forte-Enterprise-1"
+    ARIA_1 = "Aria-1"
+    AQUILA = "Aquila"
+    FORTE_1 = "Forte 1"
+    FORTE_ENTERPRISE_1 = "Forte Enterprise 1"
 
     # us-west-1
-    ANKAA_3 = "arn:aws:braket:us-west-1::device/qpu/rigetti/Ankaa-3"
+    ANKAA_3 = "Ankaa-3"
 
     # eu-north-1
-    GARNET = "arn:aws:braket:eu-north-1::device/qpu/iqm/Garnet"
-    EMERALD = "arn:aws:braket:eu-north-1::device/qpu/iqm/Emerald"
-    IBEX_Q1 = "arn:aws:braket:eu-north-1::device/qpu/aqt/Ibex-Q1"
+    GARNET = "Garnet"
+    EMERALD = "Emerald"
+    IBEX_Q1 = "Ibex Q1"
 
     # Global simulators
-    SV1 = "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
-    TN1 = "arn:aws:braket:::device/quantum-simulator/amazon/tn1"
-    DM1 = "arn:aws:braket:::device/quantum-simulator/amazon/dm1"
+    SV1 = "SV1"
+    TN1 = "TN1"
+    DM1 = "dm1"
 
 
 # Hard-coded configuration (no CLI)
-MODE = "submit"  # choose either "submit" or "fetch"
-DEVICE_ARN = BraketDevice.ANKAA_3.value
-REGION = DEVICE_ARN.split(":")[3]
-SHOTS = 1000
+MODE = "fetch"  # choose either "submit" or "fetch"
+DEVICE_NAME = BraketDevice.SV1.value  # use same naming style as 04b_qiskit_to_braket.py
+SHOTS = 100
 BOND_LENGTH = 2.0  # used in submit mode to build circuit and output path
-RUN_DIR = None  # set path (str or Path) to the run directory when MODE == "fetch"
-
 
 def main():
     if MODE == "submit":
@@ -82,56 +74,48 @@ def submit():
         mol, rhf, uhf = build_h2_rhf_uhf(R=BOND_LENGTH)
         print(f"[info] RHF energy = {rhf.e_tot:.8f}  |  UHF energy = {uhf.e_tot:.8f}")
         qc = rhf_uhf_orbital_rotation_circuit(mol, rhf, uhf, optimize_single_slater=True)
-        print(qc)
+        qc.measure_all()
         n_qubits = qc.num_qubits
         print(f"[info] Qiskit circuit has {n_qubits} qubits. Submitting via qiskit-braket-provider...")
 
         # Prepare output directory
         base_dir = Path(__file__).resolve().parent
-        data_dir = base_dir / "data" / "04c_h2" / f"bond_length_{BOND_LENGTH:.2f}" / _now_tag()
+        data_dir = base_dir / "data" / "04c_h2" / now_tag()
         data_dir.mkdir(parents=True, exist_ok=True)
 
         # Save circuit diagram
-        _write_text(data_dir / "qiskit_circuit.txt", str(qc))
+        write_text(data_dir / "qiskit_circuit.txt", str(qc))
 
         # Record initial metadata
         metadata = {
             "molecule": "H2",
-            "bond_length_angstrom": float(BOND_LENGTH),
+            "geometry": mol.atom,
             "basis": "sto-3g",
             "n_qubits": int(n_qubits),
-            "region": REGION,
-            "DEVICE_ARN": DEVICE_ARN,
+            "device": DEVICE_NAME,
             "SHOTS": SHOTS,
             "rhf_energy": float(rhf.e_tot),
             "uhf_energy": float(uhf.e_tot),
             "created_at": datetime.now().isoformat(timespec="seconds"),
         }
-        _write_json(data_dir / "metadata.json", metadata)
+        write_json(data_dir / "metadata.json", metadata)
 
-        # Submit (non-blocking)
-        print(f"[info] Submitting circuit to {DEVICE_ARN} (SHOTS={SHOTS}) via Qiskit backend...")
-        job = submit_qiskit_job(qc, SHOTS=SHOTS, DEVICE_ARN=DEVICE_ARN, region=REGION)
-
-        # Persist job info
-        try:
-            job_id = getattr(job, "job_id", None) or getattr(job, "id", None) or str(job)
-        except Exception:
-            job_id = "unknown"
+        # Submit
+        print(f"[info] Submitting circuit to {DEVICE_NAME} (SHOTS={SHOTS}) via Qiskit Braket provider...")
+        provider = BraketProvider()
+        backend = provider.get_backend(DEVICE_NAME)
+        tqc = transpile(qc, backend=backend)
+        job = backend.run(tqc, shots=SHOTS)
+        job_id = job.job_id()
         print(f"[info] Submitted Braket job: {job_id}")
-        _write_text(data_dir / "job_id.txt", str(job_id))
+        write_text(data_dir / "job_id.txt", str(job_id))
 
         # Save minimal backend/job metadata
-        try:
-            backend_name = getattr(getattr(job, "backend", None), "name", None)
-        except Exception:
-            backend_name = None
-        _write_json(
+        write_json(
             data_dir / "job_metadata.json",
             {
-                "backend": backend_name or "braket-backend",
-                "DEVICE_ARN": DEVICE_ARN,
-                "region": REGION,
+                "backend": backend.name,
+                "device": DEVICE_NAME,
                 "SHOTS": SHOTS,
                 "job_id": job_id,
                 "submitted_at": datetime.now().isoformat(timespec="seconds"),
@@ -142,7 +126,8 @@ def submit():
 
 
 def fetch():
-        run_dir_input = RUN_DIR
+        base_dir = Path(__file__).resolve().parent
+        run_dir_input = base_dir / "data" / "04c_h2" / "20260119-095902"
         if not run_dir_input:
             raise SystemExit("RUN_DIR must be set to the submission folder path when MODE='fetch'")
 
@@ -158,14 +143,12 @@ def fetch():
 
         job_meta = json.loads(job_meta_path.read_text())
         job_id = job_id_path.read_text().strip()
-        DEVICE_ARN_meta = job_meta.get("DEVICE_ARN", DEVICE_ARN)
-        region_meta = job_meta.get("region", REGION)
+        device_meta = job_meta.get("device", DEVICE_NAME)
 
         # Reconnect to backend and retrieve job
-        print(f"[info] Retrieving job {job_id} on backend {DEVICE_ARN_meta}...")
-        session = AwsSession(boto_session=boto3.Session(region_name=region_meta))
-        provider = BraketProvider(aws_session=session)
-        backend = provider.get_backend(DEVICE_ARN_meta)
+        print(f"[info] Retrieving job {job_id} on backend {device_meta}...")
+        provider = BraketProvider()
+        backend = provider.get_backend(device_meta)
 
         try:
             retrieve_job = getattr(backend, "retrieve_job")
@@ -178,7 +161,7 @@ def fetch():
             status = str(job.status())
         except Exception:
             status = "unknown"
-        _write_text(run_dir / "job_status.txt", status + "\n")
+        write_text(run_dir / "job_status.txt", status + "\n")
         print(f"[info] Current job status: {status}")
 
         # If not done, exit without blocking
@@ -201,24 +184,126 @@ def fetch():
 
         print("\nMeasurement counts (top 10):")
         if counts:
-            _write_json(run_dir / "measurement_counts.json", dict(counts))
+            write_json(run_dir / "measurement_counts.json", dict(counts))
             sorted_items = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:10]
             for bitstr, cnt in sorted_items:
                 print(f"  {bitstr}: {cnt}")
-            _write_json(
+            write_json(
                 run_dir / "measurement_counts_top10.json",
                 {k: v for k, v in sorted_items},
             )
         else:
             print("  (no counts returned)")
-            _write_text(run_dir / "measurement_counts.txt", "no counts returned\n")
+            write_text(run_dir / "measurement_counts.txt", "no counts returned\n")
 
         print(f"[info] Result artifacts saved under: {run_dir}")
 
 
-def build_h2_rhf_uhf(R: float = 2.0) -> Tuple[gto.Mole, scf.RHF, scf.UHF]:
-    """Build H2 at distance R (Å), run RHF then derive UHF starting from RHF.
+def _fetch_one(run_dir: Path) -> None:
+    """
+    Retrieve results for a single submission directory if the job completed.
+    Writes status to `job_status.txt` and, when available, saves
+    `measurement_counts.json` and `measurement_counts_top10.json`.
+    """
+    if not run_dir.exists():
+        print(f"[warn] Run directory does not exist: {run_dir}")
+        return
 
+    job_meta_path = run_dir / "job_metadata.json"
+    job_id_path = run_dir / "job_id.txt"
+    if not job_meta_path.exists() or not job_id_path.exists():
+        print(f"[warn] Missing job_metadata.json or job_id.txt in {run_dir}")
+        return
+
+    job_meta = json.loads(job_meta_path.read_text())
+    job_id = job_id_path.read_text().strip()
+    device_meta = job_meta.get("device", DEVICE_NAME)
+
+    print(f"[info] Retrieving job {job_id} on backend {device_meta}...")
+    provider = BraketProvider()
+    backend = provider.get_backend(device_meta)
+
+    try:
+        retrieve_job = getattr(backend, "retrieve_job")
+    except AttributeError:
+        print("[error] Backend does not support retrieve_job(job_id)")
+        return
+
+    job = retrieve_job(job_id)
+    try:
+        status = str(job.status())
+    except Exception:
+        status = "unknown"
+    write_text(run_dir / "job_status.txt", status + "\n")
+    print(f"[info] Current job status: {status}")
+
+    status_upper = status.upper()
+    if not any(s in status_upper for s in ["DONE", "COMPLETED", "SUCCESS"]):
+        print("[info] Job not completed yet. Skipping for now.")
+        return
+
+    print("[info] Job completed. Fetching results...")
+    result = job.result()
+
+    # Try to obtain counts in a provider-agnostic way
+    try:
+        counts = result.get_counts()
+    except Exception:
+        try:
+            counts = result.results[0].data.counts  # type: ignore[attr-defined]
+        except Exception:
+            counts = None
+
+    if counts:
+        write_json(run_dir / "measurement_counts.json", dict(counts))
+        sorted_items = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:10]
+        write_json(
+            run_dir / "measurement_counts_top10.json",
+            {k: v for k, v in sorted_items},
+        )
+        print(f"[info] Saved counts for: {run_dir}")
+    else:
+        print(f"[info] No counts returned for: {run_dir}")
+
+
+def fetch_all() -> None:
+    """
+    Walk through research/04_aws_start/data/04c_h2/* and fetch results for any
+    run directory that has submission artifacts (job_metadata.json & job_id.txt)
+    but is missing measurement_counts.json.
+    """
+    base_dir = Path(__file__).resolve().parent
+    data_root = base_dir / "data" / "04c_h2"
+    if not data_root.exists():
+        print(f"[info] Nothing to do. Data directory not found: {data_root}")
+        return
+
+    # Consider immediate subdirectories under data/04c_h2 as run directories
+    run_dirs = [p for p in data_root.iterdir() if p.is_dir()]
+    if not run_dirs:
+        print(f"[info] No run directories found under: {data_root}")
+        return
+
+    to_process = []
+    for rd in sorted(run_dirs):
+        has_submission = (rd / "job_metadata.json").exists() and (rd / "job_id.txt").exists()
+        has_counts = (rd / "measurement_counts.json").exists()
+        if has_submission and not has_counts:
+            to_process.append(rd)
+
+    if not to_process:
+        print("[info] All runs already fetched (measurement_counts.json present).")
+        return
+
+    print(f"[info] Found {len(to_process)} run(s) to fetch.")
+    for rd in to_process:
+        print(f"\n[info] Processing: {rd}")
+        _fetch_one(rd)
+
+
+def build_h2_rhf_uhf(R: float = 2.0) -> Tuple[gto.Mole, scf.RHF, scf.UHF]:
+    """
+    Build H2 at distance R (Å), run RHF then derive UHF starting from RHF.
     Returns (mol, rhf, uhf).
     """
     mol = gto.Mole()
@@ -236,68 +321,41 @@ def build_h2_rhf_uhf(R: float = 2.0) -> Tuple[gto.Mole, scf.RHF, scf.UHF]:
     return mol, rhf, uhf
 
 
-def run_qiskit_on_braket_backend(
-    qc,
-    SHOTS: int = 1000,
-    *,
-    DEVICE_ARN: str,
-    region: str | None = None,
-):
-    """Run a Qiskit circuit on an AWS Braket backend using qiskit-braket-provider.
-
-    Returns a tuple (job, result).
-    """
-    region = region or _parse_region_from_arn(DEVICE_ARN) or "us-east-1"
-    session = AwsSession(boto_session=boto3.Session(region_name=region))
-    provider = BraketProvider(aws_session=session)
-
-    backend = provider.get_backend(DEVICE_ARN)
-    tqc = transpile(qc, backend=backend)
-    job = backend.run(tqc, SHOTS=SHOTS)
-    result = job.result()
-    return job, result
-
-
 def submit_qiskit_job(
-    qc,
-    SHOTS: int = 1000,
-    *,
-    DEVICE_ARN: str,
-    region: str | None = None,
+    qc: QuantumCircuit,
+    shots: int,
+    device_name: str,
 ):
-    """Submit a Qiskit circuit to an AWS Braket backend without waiting.
-
-    Returns the provider Job object (non-blocking)."""
-    region = region or _parse_region_from_arn(DEVICE_ARN) or "us-east-1"
-    session = AwsSession(boto_session=boto3.Session(region_name=region))
-    provider = BraketProvider(aws_session=session)
-    backend = provider.get_backend(DEVICE_ARN)
+    """
+    Submit a Qiskit circuit to an AWS Braket backend without waiting.
+    Returns the provider Job object (non-blocking).
+    """
+    provider = BraketProvider()
+    backend = provider.get_backend(device_name)
     tqc = transpile(qc, backend=backend)
-    job = backend.run(tqc, SHOTS=SHOTS)
+    job = backend.run(tqc, shots=shots)
     return job
 
 
-def _now_tag() -> str:
+def now_tag() -> str:
     return datetime.now().strftime("%Y%m%d-%H%M%S")
 
 
-def _ensure_dir(path: Path) -> None:
+def ensure_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def _write_text(path: Path, content: str) -> None:
+def write_text(path: Path, content: str) -> None:
     path.write_text(content)
 
 
-def _write_json(path: Path, data: dict) -> None:
+def write_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2))
 
 
-def _parse_region_from_arn(arn: str) -> str | None:
-    parts = arn.split(":")
-    # arn:partition:service:region:account-id:resource
-    region = parts[3] if len(parts) > 3 else None
-    return region or None
+# Note: region parsing and explicit AwsSession handling removed to mirror
+# 04b_qiskit_to_braket.py usage which relies on default AWS configuration
+# available to the qiskit-braket-provider.
 
 
 if __name__ == "__main__":
