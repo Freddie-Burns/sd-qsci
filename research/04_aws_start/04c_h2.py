@@ -128,8 +128,6 @@ def submit():
 def fetch():
         base_dir = Path(__file__).resolve().parent
         run_dir_input = base_dir / "data" / "20260119-095902"
-        if not run_dir_input:
-            raise SystemExit("RUN_DIR must be set to the submission folder path when MODE='fetch'")
 
         run_dir = Path(run_dir_input)
         if not run_dir.exists():
