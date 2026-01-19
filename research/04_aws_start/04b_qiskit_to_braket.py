@@ -1,63 +1,82 @@
-from __future__ import annotations
-
-# Build a simple GHZ circuit in Qiskit and execute it on AWS Braket SV1
-# via qiskit-braket-provider.
+from enum import Enum
+from pprint import pprint
 
 from qiskit import QuantumCircuit, transpile
 from qiskit_braket_provider import BraketProvider
 
-from braket.aws import AwsSession
-import boto3
+
+# Target AWS Braket backend (SV1 state vector simulator)
+DEVICE_ARN = "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
+SHOTS = 100
 
 
-def build_ghz_qiskit(n_qubits: int = 3) -> QuantumCircuit:
-    """Create an n-qubit GHZ state circuit in Qiskit and measure all qubits.
+class BraketDevice(Enum):
+    """Canonical selection of target devices (deduplicated simulators)."""
+    # us-east-1
+    ARIA_1 = "Aria-1"
+    AQUILA = "Aquila"
+    FORTE_1 = "Forte 1"
+    FORTE_ENTERPRISE_1 = "Forte Enterprise 1"
 
-    GHZ = (|0...0> + |1...1>) / sqrt(2)
-    """
-    qc = QuantumCircuit(n_qubits, n_qubits)
-    # Create GHZ entanglement
-    qc.h(0)
-    for i in range(n_qubits - 1):
-        qc.cx(i, i + 1)
-    # Measure all qubits
-    qc.measure(range(n_qubits), range(n_qubits))
-    return qc
+    # us-west-1
+    ANKAA_3 = "Ankaa-3"
+
+    # eu-north-1
+    GARNET = "Garnet"
+    EMERALD = "Emerald"
+    IBEX_Q1 = "Ibex Q1"
+
+    # Global simulators
+    SV1 = "SV1"
+    TN1 = "TN1"
+    DM1 = "dm1"
 
 
 def main():
-    # Target AWS Braket backend (SV1 state vector simulator)
-    DEVICE_ARN = "arn:aws:braket:::device/quantum-simulator/amazon/sv1"
-    SHOTS = 1000
+    qc = ghz_qc()
+    device = BraketDevice.SV1
+    run_braket(qc, device)
 
+
+def print_backends():
+    provider = BraketProvider()
+    backends = provider.backends()
+    for backend in backends:
+        pprint(
+            {
+                "name": backend.name,
+                "description": backend.description,
+                "online date": backend.online_date,
+                "number of qubits": backend.num_qubits,
+                "operations": backend.operations[:5],
+                "backend version": backend.version,
+            }
+        )
+
+
+def ghz_qc():
     # Build circuit in Qiskit
-    qc = build_ghz_qiskit(3)
+    qc = QuantumCircuit(3)
+    # Create GHZ entanglement
+    qc.h(0)
+    qc.cx(0, 1)
+    qc.cx(1, 2)
+    # Measure all qubits
+    qc.measure_all()
     print("Qiskit circuit:")
-    try:
-        # If supported in the environment, show a text diagram
-        print(qc.draw("text"))
-    except Exception:
-        pass
+    print(qc.draw("text"))
+    return qc
 
-    # Use qiskit-braket-provider to access the AWS Braket backend
-    # Choose a region; SV1 is a regional service but ARN omits region, so we set one.
-    region = "us-east-1"
-    session = AwsSession(boto_session=boto3.Session(region_name=region))
-    provider = BraketProvider(aws_session=session)
-    backend = provider.get_backend(DEVICE_ARN)
+
+def run_braket(qc, device):
+    provider = BraketProvider()
+    backend = provider.get_backend(device.value)
 
     # Transpile for the target backend and run
     tqc = transpile(qc, backend=backend)
     job = backend.run(tqc, shots=SHOTS)
-    job_id = None
-    try:
-        job_id = job.id()
-    except Exception:
-        try:
-            job_id = job.job_id()
-        except Exception:
-            job_id = "unknown"
-    print(f"Submitted job {job_id} to backend {backend.name()}")
+    job_id = job.job_id()
+    print(f"Submitted job {job_id} to backend {backend.name}")
 
     # Wait for result and show counts
     result = job.result()
