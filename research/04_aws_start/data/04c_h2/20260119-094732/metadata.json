@@ -1,0 +1,11 @@
+{
+  "molecule": "H2",
+  "geometry": "H 0 0 0; H 0 0 2.0",
+  "basis": "sto-3g",
+  "n_qubits": 4,
+  "device": "SV1",
+  "SHOTS": 1000,
+  "rhf_energy": -0.7837926542773532,
+  "uhf_energy": -0.9372128329762295,
+  "created_at": "2026-01-19T09:47:32"
+}

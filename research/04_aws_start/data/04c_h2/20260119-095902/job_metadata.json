@@ -1,0 +1,7 @@
+{
+  "backend": "SV1",
+  "device": "SV1",
+  "SHOTS": 100,
+  "job_id": "arn:aws:braket:eu-west-2:468227866156:quantum-task/dfc90ac5-46c5-47a6-bdbd-4449eba94271",
+  "submitted_at": "2026-01-19T09:59:12"
+}
