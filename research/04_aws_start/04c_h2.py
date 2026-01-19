@@ -64,10 +64,8 @@ SHOTS = 100
 BOND_LENGTH = 2.0  # used in submit mode to build circuit and output path
 
 def main():
-    if MODE == "submit":
-        submit()
-    elif MODE == "fetch":
-        fetch()
+    fetch_all()
+
         
 def submit():
         # Build problem and circuit
