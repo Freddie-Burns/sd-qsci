@@ -80,7 +80,7 @@ def submit():
 
         # Prepare output directory
         base_dir = Path(__file__).resolve().parent
-        data_dir = base_dir / "data" / "04c_h2" / now_tag()
+        data_dir = base_dir / "data" / now_tag()
         data_dir.mkdir(parents=True, exist_ok=True)
 
         # Save circuit diagram
@@ -127,7 +127,7 @@ def submit():
 
 def fetch():
         base_dir = Path(__file__).resolve().parent
-        run_dir_input = base_dir / "data" / "04c_h2" / "20260119-095902"
+        run_dir_input = base_dir / "data" / "20260119-095902"
         if not run_dir_input:
             raise SystemExit("RUN_DIR must be set to the submission folder path when MODE='fetch'")
 
@@ -273,7 +273,7 @@ def fetch_all() -> None:
     but is missing measurement_counts.json.
     """
     base_dir = Path(__file__).resolve().parent
-    data_root = base_dir / "data" / "04c_h2"
+    data_root = base_dir / "data"
     if not data_root.exists():
         print(f"[info] Nothing to do. Data directory not found: {data_root}")
         return
