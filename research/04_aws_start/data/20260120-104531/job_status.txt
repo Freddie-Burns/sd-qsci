@@ -1,1 +1,1 @@
-JobStatus.QUEUED
+JobStatus.DONE
