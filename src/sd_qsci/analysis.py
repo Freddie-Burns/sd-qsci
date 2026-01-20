@@ -356,12 +356,15 @@ def run_quantum_chemistry_calculations(
         mol: gto.Mole,
         rhf: scf.RHF,
         bond_length: Optional[float],
+        statevector: Optional["Statevector | np.ndarray"] = None,
 ) -> QuantumChemistryResults:
     """
     Run complete quantum chemistry calculations and circuit simulation.
 
-    Performs UHF calculation, builds orbital-rotation circuit, simulates the
-    statevector, and constructs the full Hamiltonian.
+    Performs UHF calculation, builds orbital-rotation circuit, and constructs
+    the full Hamiltonian. By default it simulates the statevector from the
+    circuit. Alternatively, a precomputed statevector can be provided to bypass
+    simulation (e.g., derived from hardware measurement post-processing).
 
     Parameters
     ----------
@@ -372,6 +375,19 @@ def run_quantum_chemistry_calculations(
     bond_length : float, optional
         Bond length for reference. Default is None.
 
+    Parameters
+    -------
+    mol : gto.Mole
+        PySCF molecule object.
+    rhf : scf.RHF
+        Restricted Hartree-Fock object.
+    bond_length : float, optional
+        Bond length for reference. Default is None.
+    statevector : qiskit.quantum_info.Statevector or numpy.ndarray, optional
+        If provided, this statevector is used instead of simulating the
+        circuit. If a numpy array is provided, it will be wrapped into a
+        qiskit Statevector. The array is expected to be L2-normalized.
+
     Returns
     -------
     QuantumChemistryResults
@@ -380,17 +396,30 @@ def run_quantum_chemistry_calculations(
     Raises
     ------
     RuntimeError
-        If orbital rotation verification fails (statevector energy != UHF energy).
+        If orbital rotation verification fails (statevector energy != UHF
+        energy) when the statevector is simulated internally.
     """
     uhf = uhf_from_rhf(mol, rhf)
     qc = circuit.rhf_uhf_orbital_rotation_circuit(mol, rhf, uhf)
-    sv = circuit.simulate(qc)
+
+    # Determine the statevector: either simulate or use provided one
+    simulated_internally = statevector is None
+    if simulated_internally:
+        sv = circuit.simulate(qc)
+    else:
+        if isinstance(statevector, Statevector):
+            sv = statevector
+        else:
+            # Assume numpy-like array to be wrapped as a Statevector
+            sv = Statevector(statevector)
+
     spin_symm_amp = spin_symm_amplitudes(sv.data)
     H = hamiltonian.hamiltonian_from_pyscf(mol, rhf)
 
     # Use np.vdot for robust dot product across array shapes
     sv_energy = np.vdot(sv.data, H.dot(sv.data)).real if hasattr(H, 'dot') else np.vdot(sv.data, H @ sv.data).real
-    if not np.isclose(sv_energy, uhf.e_tot):
+    # Only enforce verification when we simulated internally
+    if simulated_internally and not np.isclose(sv_energy, uhf.e_tot):
         raise RuntimeError("Orbital rotation verification failed: statevector energy != UHF energy")
 
     fci_energy, n_fci_configs, fci_vec = calc_fci_energy(rhf)
@@ -422,8 +451,8 @@ def save_convergence_data(
     """
     Save convergence data and summary to CSV files.
 
-    Saves the convergence dataframe to 'h6_qsci_convergence.csv' and a
-    summary of key quantities to 'h6_summary.csv'.
+    Saves the convergence dataframe to 'qsci_convergence.csv' and a
+    summary of key quantities to 'summary.csv'.
 
     Parameters
     ----------
@@ -435,7 +464,7 @@ def save_convergence_data(
         Convergence analysis results.
     """
     Path(data_dir).mkdir(parents=True, exist_ok=True)
-    conv_results.df.to_csv(Path(data_dir) / 'h6_qsci_convergence.csv', index=False)
+    conv_results.df.to_csv(Path(data_dir) / 'qsci_convergence.csv', index=False)
 
     # Chemical accuracy tolerance (in Hartree)
     CHEM_ACCURACY_TOL = 1.6e-3
@@ -490,7 +519,7 @@ def save_convergence_data(
     if total_gates is not None:
         summary_data['total_gates'] = int(total_gates)
     summary_df = pd.DataFrame(list(summary_data.items()), columns=['quantity', 'value'])
-    summary_df.to_csv(Path(data_dir) / 'h6_summary.csv', index=False)
+    summary_df.to_csv(Path(data_dir) / 'summary.csv', index=False)
 
 
 def setup_data_directory(base: Optional[Path] = None) -> Path:

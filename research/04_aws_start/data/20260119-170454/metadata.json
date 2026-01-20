@@ -1,0 +1,11 @@
+{
+  "molecule": "H4",
+  "geometry": "H 0 0 0; H 0 0 2.0; H 0 0 4.0; H 0 0 6.0",
+  "basis": "sto-3g",
+  "n_qubits": 8,
+  "device": "Forte 1",
+  "SHOTS": 1000,
+  "rhf_energy": -1.575616476701866,
+  "uhf_energy": -1.8783518378847535,
+  "created_at": "2026-01-19T17:04:54"
+}

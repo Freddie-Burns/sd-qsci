@@ -7,6 +7,7 @@ from typing import Optional
 import numpy as np
 import seaborn as sns
 from matplotlib import pyplot as plt
+from matplotlib import patches, transforms
 
 from sd_qsci import spin
 from sd_qsci.analysis import QuantumChemistryResults, ConvergenceResults, \
@@ -18,7 +19,7 @@ def convergence_comparison(
     qc_results: QuantumChemistryResults,
     conv_results: ConvergenceResults,
     title_prefix: Optional[str] = None,
-    ylog: bool = False,
+    ylog: bool = True,
     label_raw: str = 'UHF State',
     label_spin: str = 'UHF State Spin Recovered',
 ):
@@ -42,9 +43,42 @@ def convergence_comparison(
     sns.set_style("whitegrid")
     fig, ax = plt.subplots(figsize=(12, 8))
 
+    # Plot energies as differences from FCI (absolute FCI energy)
+    fci_E = qc_results.fci_energy
+
+    # Chemical accuracy region (≤ 1.6e-3 Ha) with diagonal green hatch over light grey
+    y_lo = 1.0e-4
+    chem_acc = 1.6e-3
+    trans = transforms.blended_transform_factory(ax.transAxes, ax.transData)
+    bg = patches.Rectangle(
+        (0.0, y_lo),
+        1.0,
+        chem_acc - y_lo,
+        transform=trans,
+        facecolor='#D0D0D0',
+        edgecolor='none',
+        alpha=0.35,
+        zorder=0,
+    )
+    ax.add_patch(bg)
+    hat = patches.Rectangle(
+        (0.0, y_lo),
+        1.0,
+        chem_acc - y_lo,
+        transform=trans,
+        facecolor='none',
+        edgecolor='#2ca02c',
+        hatch='///',
+        linewidth=0.0,
+        zorder=0,
+    )
+    ax.add_patch(hat)
+
+    # Ensure consistent lower y-limit across plots
+    ax.set_ylim(bottom=y_lo)
     ax.plot(
         conv_results.df['subspace_size'],
-        conv_results.df['qsci_energy'],
+        conv_results.df['qsci_energy'] - fci_E,
         'o-',
         label=label_raw,
         linewidth=2,
@@ -59,7 +93,7 @@ def convergence_comparison(
 
     ax.plot(
         df_symm['subspace_size'],
-        df_symm['spin_symm_energy'],
+        df_symm['spin_symm_energy'] - fci_E,
         '^-',
         label=label_spin,
         linewidth=2,
@@ -68,7 +102,7 @@ def convergence_comparison(
     )
     ax.plot(
         conv_results.df['subspace_size'],
-        conv_results.df['fci_subspace_energy'],
+        conv_results.df['fci_subspace_energy'] - fci_E,
         's-',
         label='FCI',
         linewidth=2,
@@ -77,34 +111,37 @@ def convergence_comparison(
     )
 
     ax.axhline(
-        y=qc_results.rhf.e_tot,
+        y=qc_results.rhf.e_tot - fci_E,
         color='blue',
         linestyle='--',
         linewidth=2,
-        label=f'RHF: {qc_results.rhf.e_tot:.2f} Ha',
+        label=f'RHF − FCI: {(qc_results.rhf.e_tot - fci_E):.4f} Ha',
     )
     ax.axhline(
-        y=qc_results.uhf.e_tot,
+        y=qc_results.uhf.e_tot - fci_E,
         color='orange',
         linestyle='--',
         linewidth=2,
-        label=f'UHF: {qc_results.uhf.e_tot:.2f} Ha',
+        label=f'UHF − FCI: {(qc_results.uhf.e_tot - fci_E):.4f} Ha',
     )
     ax.axhline(
-        y=qc_results.fci_energy,
+        y=0.0,
         color='green',
         linestyle='--',
         linewidth=2,
-        label=f'FCI: {qc_results.fci_energy:.2f} Ha',
+        label='FCI (ΔE = 0)',
     )
 
     ax.set_xlabel('Subspace Size (Number of Configurations)', fontsize=12)
-    ax.set_ylabel('Energy (Hartree)', fontsize=12)
+    ax.set_ylabel('Energy − FCI (Hartree)', fontsize=12)
+
     if ylog:
         # Use symmetric log to allow negative energies while still showing magnitude
-        ax.set_yscale('symlog', linthresh=1e-6)
+        # ax.set_yscale('symlog', linthresh=1e-6)
+        ax.set_yscale('log')
+
     bond_info = f"Bond Length = {qc_results.bond_length:.2f} Å" if qc_results.bond_length is not None else ""
-    title = (f"Energy Convergence Comparison\n{bond_info}")
+    title = (f"Energy Error vs Subspace Size (relative to FCI)\n{bond_info}")
     if title_prefix:
         title = f"{title_prefix}: " + title
     ax.set_title(title, fontsize=14, fontweight='bold')
@@ -113,7 +150,7 @@ def convergence_comparison(
     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    out_path = Path(data_dir) / 'h6_qsci_convergence.png'
+    out_path = Path(data_dir) / 'qsci_convergence.png'
     out_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out_path, dpi=300, bbox_inches='tight')
     plt.close(fig)
@@ -124,7 +161,7 @@ def energy_vs_samples(
     qc_results: QuantumChemistryResults,
     conv_results: ConvergenceResults,
     title_prefix: Optional[str] = None,
-    ylog: bool = False,
+    ylog: True = False,
     label_raw: str = 'UHF State',
     label_spin: str = 'UHF State Spin Recovered',
 ):
@@ -151,6 +188,48 @@ def energy_vs_samples(
     # Build mean-sample-number series for raw and spin-recovered selections
     sizes = list(conv_results.df['subspace_size'])
 
+    # Chemical accuracy region (≤ 1.6e-3 Ha) with diagonal green hatch over light grey
+    y_lo = 1.0e-4
+    chem_acc = 1.6e-3
+    trans = transforms.blended_transform_factory(ax.transAxes, ax.transData)
+    bg = patches.Rectangle(
+        (0.0, y_lo),
+        1.0,
+        chem_acc - y_lo,
+        transform=trans,
+        facecolor='#D0D0D0',
+        edgecolor='none',
+        alpha=0.35,
+        zorder=0,
+    )
+    ax.add_patch(bg)
+    hat = patches.Rectangle(
+        (0.0, y_lo),
+        1.0,
+        chem_acc - y_lo,
+        transform=trans,
+        facecolor='none',
+        edgecolor='#2ca02c',
+        hatch='///',
+        linewidth=0.0,
+        zorder=0,
+    )
+    ax.add_patch(hat)
+    proxy = patches.Rectangle(
+        (0, 0),
+        1,
+        1,
+        facecolor='#D0D0D0',
+        edgecolor='#2ca02c',
+        hatch='///',
+        alpha=0.35,
+        label='chemical accuracy',
+    )
+    ax.add_artist(proxy)
+
+    # Ensure consistent lower y-limit across plots
+    ax.set_ylim(bottom=y_lo)
+
     def mean_samples_for_sizes(data: np.ndarray, sizes_list: list[int]) -> list[float]:
         vals = []
         # Determine selection order by amplitude magnitude
@@ -175,10 +254,11 @@ def energy_vs_samples(
         spin_sizes = []
     ms_symm = mean_samples_for_sizes(qc_results.spin_symm_amp, spin_sizes) if len(spin_sizes) else []
 
-    # Plot raw QSCI energy vs raw mean sample number
+    # Plot QSCI energy error (relative to FCI) vs mean sample number
+    fci_E = qc_results.fci_energy
     ax.semilogx(
         ms_raw,
-        list(conv_results.df['qsci_energy']), 'o-',
+        list(conv_results.df['qsci_energy'] - fci_E), 'o-',
         label=label_raw,
         linewidth=2,
         markersize=4,
@@ -190,48 +270,49 @@ def energy_vs_samples(
         df_symm = conv_results.df[conv_results.df['subspace_size'].isin(spin_sizes)]
         ax.semilogx(
             ms_symm,
-            list(df_symm['spin_symm_energy']), 's-',
+            list(df_symm['spin_symm_energy'] - fci_E), 's-',
             label=label_spin,
             linewidth=2,
             markersize=4,
             color='#D55E00',
         )
 
-    # RHF energy reference line
+    # RHF energy reference line (as ΔE relative to FCI)
     ax.axhline(
-        y=qc_results.rhf.e_tot,
+        y=qc_results.rhf.e_tot - fci_E,
         color='blue',
         linestyle='--',
         linewidth=2,
-        label=f'RHF: {qc_results.rhf.e_tot:.2f} Ha',
+        label=f'RHF − FCI: {(qc_results.rhf.e_tot - fci_E):.4f} Ha',
     )
     # UHF energy reference line
     ax.axhline(
-        y=qc_results.uhf.e_tot,
+        y=qc_results.uhf.e_tot - fci_E,
         color='orange',
         linestyle='--',
         linewidth=2,
-        label=f'UHF: {qc_results.uhf.e_tot:.2f} Ha',
+        label=f'UHF − FCI: {(qc_results.uhf.e_tot - fci_E):.4f} Ha',
     )
     # FCI energy reference line
     ax.axhline(
-        y=qc_results.fci_energy,
+        y=0.0,
         color='green',
         linestyle='--',
         linewidth=2,
-        label=f'FCI: {qc_results.fci_energy:.2f} Ha',
+        label='FCI (ΔE = 0)',
     )
 
     # Label axes
     ax.set_xlabel('Mean Sample Number (log scale)', fontsize=12)
-    ax.set_ylabel('Energy (Hartree)', fontsize=12)
+    ax.set_ylabel('Energy − FCI (Hartree)', fontsize=12)
     if ylog:
-        ax.set_yscale('symlog', linthresh=1e-6)
+        # ax.set_yscale('symlog', linthresh=1e-6)
+        ax.set_yscale('log')
 
     # Create title with bond length if available
     if qc_results.bond_length is None: bond_info = ""
     else: bond_info = f"Bond Length = {qc_results.bond_length:.2f} Å"
-    title = (f"Energy vs Mean Sample Number\n{bond_info}")
+    title = (f"Energy Error vs Mean Sample Number (relative to FCI)\n{bond_info}")
     if title_prefix: title = f"{title_prefix}: " + title
     ax.set_title(title, fontsize=14, fontweight='bold')
 
@@ -241,7 +322,7 @@ def energy_vs_samples(
 
     # Save plot
     plt.tight_layout()
-    out_path = Path(data_dir) / 'h6_energy_vs_samples.png'
+    out_path = Path(data_dir) / 'energy_vs_samples.png'
     out_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out_path, dpi=300, bbox_inches='tight')
     plt.close(fig)
