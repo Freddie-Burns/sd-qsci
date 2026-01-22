@@ -12,7 +12,7 @@ from sd_qsci import analysis, plot
 
 
 # Minimal, hard-coded configuration for combining MULTIPLE date tags only.
-# 04d aggregates counts across multiple tags; for single-tag analysis use 04e_job_analysis.py
+# 04d aggregates counts across multiple tags; for single-tag analysis use 04d_job_analysis.py
 DATE_TAGS: list[str] = [
     "20260119-170454",
     "20260120-104429",
