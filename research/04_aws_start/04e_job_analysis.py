@@ -11,44 +11,20 @@ from sd_qsci.analysis import run_quantum_chemistry_calculations
 from sd_qsci import analysis, plot
 
 
-# Minimal, hard-coded configuration for combining MULTIPLE date tags only.
-# 04d aggregates counts across multiple tags; for single-tag analysis use 04e_job_analysis.py
-DATE_TAGS: list[str] = [
-    "20260119-170454",
-    "20260120-104429",
-    "20260120-104452",
-    "20260120-104508",
-    "20260120-104531",
-]
+# Minimal, hard-coded configuration for a single job/date tag
+DATE_TAG: str = "20260120-104531"
 
 
 def main():
     base_dir = Path(__file__).resolve().parent
     out_dir = get_data_dir()
 
-    # Load counts from all DATE_TAGS and sum them
-    per_tag_counts: list[dict[str, int]] = []
-    for i, tag in enumerate(DATE_TAGS):
-        in_path = base_dir / "data" / tag / "measurement_counts.json"
+    # Load counts for the single DATE_TAG
+    counts_path = base_dir / "data" / DATE_TAG / "measurement_counts.json"
+    with counts_path.open("r", encoding="utf-8") as f:
+        counts: dict[str, int] = json.load(f)
 
-        with in_path.open("r", encoding="utf-8") as f:
-            counts_i = json.load(f)
-        per_tag_counts.append(counts_i)
-
-    # Load metadata from the first tag only (assumed identical across DATE_TAGS)
-    meta_path = base_dir / "data" / DATE_TAGS[0] / "metadata.json"
-    with meta_path.open("r", encoding="utf-8") as mf:
-        meta = json.load(mf)
-
-    # Combine counts directly (keys are guaranteed to have the same length)
-    combined: dict[str, int] = {}
-    for counts_i in per_tag_counts:
-        for k, v in counts_i.items():
-            combined[k] = combined.get(k, 0) + int(v)
-    counts = combined
-
-    # Save combined counts and top-10 counts into the output directory
-    # (for multiple DATE_TAGS this will be the combined_* folder)
+    # Also write back the counts (keeps output artifacts consistent with 04d)
     out_counts_path = out_dir / "measurement_counts.json"
     with out_counts_path.open("w", encoding="utf-8") as f:
         json.dump(counts, f, indent=2, sort_keys=True)
@@ -59,6 +35,11 @@ def main():
     out_top10_path = out_dir / "measurement_counts_top10.json"
     with out_top10_path.open("w", encoding="utf-8") as f:
         json.dump(top10_counts, f, indent=2, sort_keys=True)
+
+    # Load metadata for the single tag
+    meta_path = base_dir / "data" / DATE_TAG / "metadata.json"
+    with meta_path.open("r", encoding="utf-8") as mf:
+        meta = json.load(mf)
 
     # Infer qubit count and construct ordered basis
     n = max(len(k) for k in counts.keys())
@@ -89,7 +70,9 @@ def main():
         bond_length = float(np.linalg.norm(coords[1] - coords[0]))
 
     # Run downstream analysis using the provided Statevector
-    qc_results = run_quantum_chemistry_calculations(mol, rhf, bond_length=bond_length, statevector=sv)
+    qc_results = run_quantum_chemistry_calculations(
+        mol, rhf, bond_length=bond_length, statevector=sv
+    )
 
     # Calculate convergence data
     conv_results = analysis.calc_convergence_data(qc_results, spin_symm=True)
@@ -101,8 +84,7 @@ def main():
     plot.energy_vs_samples(out_dir, qc_results, conv_results, ylog=True)
     plot.convergence_comparison(out_dir, qc_results, conv_results, ylog=True)
 
-    # Plot statevector amplitudes as a bar graph (and full log plot),
-    # reusing the helper from src/sd_qsci/plot.py as in 08_spin_recovery
+    # Plot statevector amplitudes as a bar graph (and full log plot)
     plot.statevector_coefficients(
         qc_results.sv.data,
         qc_results.fci_vec,
@@ -123,11 +105,10 @@ def main():
 
 def get_data_dir():
     """
-    Output directory: always store under a combined folder name for multiple tags.
+    Output directory: for a single DATE_TAG, store under that tag.
     """
     base_dir = Path(__file__).resolve().parent
-    out_tag = "combined_" + "_".join(DATE_TAGS)
-    data_dir = base_dir / "data" / out_tag
+    data_dir = base_dir / "data" / DATE_TAG
     data_dir.mkdir(parents=True, exist_ok=True)
     return data_dir
 
