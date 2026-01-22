@@ -25,14 +25,15 @@ from enum import Enum
 from typing import Tuple
 
 import numpy as np
+from matplotlib import pyplot as plt
 from pyscf import gto, scf
+from qiskit import transpile, QuantumCircuit
+from qiskit import qpy
+from qiskit.quantum_info import Statevector
+from qiskit_braket_provider import BraketProvider
 
 from sd_qsci.utils import uhf_from_rhf
 from sd_qsci.circuit import rhf_uhf_orbital_rotation_circuit
-
-# Qiskit for circuit construction/export
-from qiskit import transpile, QuantumCircuit
-from qiskit_braket_provider import BraketProvider
 
 
 class BraketDevice(Enum):
@@ -62,27 +63,43 @@ SHOTS = int(1e3)
 BOND_LENGTH = 2.0  # used in submit mode to build circuit and output path
 
 def main():
-    # submit()
+    submit()
     # fetch("20260119-170454")
-    fetch_all()
+    # fetch_all()
 
         
 def submit():
         # Build problem and circuit
         mol, rhf, uhf = build_h4_rhf_uhf(R=BOND_LENGTH)
         print(f"[info] RHF energy = {rhf.e_tot:.8f}  |  UHF energy = {uhf.e_tot:.8f}")
-        qc = rhf_uhf_orbital_rotation_circuit(mol, rhf, uhf, optimize_single_slater=True)
+
+        qc = rhf_uhf_orbital_rotation_circuit(
+            mol, rhf, uhf, optimize_single_slater=True
+        )
+
+        # Display circuit for checking
+        qc.decompose().draw(output="mpl")
+        # plt.show()
+
+        # Keep an unmeasured copy for statevector simulation
+        qc_for_sim = qc.copy()
+
+        # Add measurements to create the sampling circuit for the AWS run
         qc.measure_all()
+
         n_qubits = qc.num_qubits
-        print(f"[info] Qiskit circuit has {n_qubits} qubits. Submitting via qiskit-braket-provider...")
+        print(
+            f"[info] Qiskit circuit has {n_qubits} qubits. Submitting via qiskit-braket-provider..."
+        )
 
         # Prepare output directory
         base_dir = Path(__file__).resolve().parent
         data_dir = base_dir / "data" / now_tag()
         data_dir.mkdir(parents=True, exist_ok=True)
 
-        # Save circuit diagram
-        write_text(data_dir / "qiskit_circuit.txt", str(qc))
+        # Save circuit diagrams (human-readable)
+        write_text(data_dir / "qiskit_circuit_measured.txt", str(qc))
+        write_text(data_dir / "qiskit_circuit_unmeasured.txt", str(qc_for_sim))
 
         # Record initial metadata
         metadata = {
@@ -98,29 +115,77 @@ def submit():
         }
         write_json(data_dir / "metadata.json", metadata)
 
-        # Submit
-        print(f"[info] Submitting circuit to {DEVICE_NAME} (SHOTS={SHOTS}) via Qiskit Braket provider...")
+        # Save detailed circuit data for later exact reconstruction
+        with open(data_dir / "qiskit_circuit_unmeasured.qpy", "wb") as f:
+            qpy.dump(qc_for_sim, f)
+        with open(data_dir / "qiskit_circuit_measured.qpy", "wb") as f:
+            qpy.dump(qc, f)
+
+        # Local statevector simulation (using the unmeasured circuit)
+        # Remove final measurements if any (safety), then get statevector
+        qc_for_sv = getattr(qc_for_sim, "remove_final_measurements", None)
+        if callable(qc_for_sv):
+            qc_nom = qc_for_sim.remove_final_measurements(inplace=False)
+        else:
+            qc_nom = qc_for_sim
+
+        sv = Statevector.from_instruction(qc_nom)
+
+        # Save as .npy and JSON (real/imag)
+        np.save(data_dir / "sim_statevector.npy", sv.data)
+
+        sv_json = {
+            "n_qubits": int(n_qubits),
+            "dim": int(len(sv.data)),
+            "amplitudes": [
+                {"index": int(i), "real": float(z.real), "imag": float(z.imag)}
+                for i, z in enumerate(sv.data)
+            ],
+        }
+        write_json(data_dir / "sim_statevector.json", sv_json)
+
+        # Also save top-10 probabilities for a quick glance
+        probs = np.abs(sv.data) ** 2
+        idx_sorted = np.argsort(probs)[::-1][:10]
+        top10 = {
+            format(int(i), f"0{n_qubits}b"): float(probs[i]) for i in idx_sorted
+        }
+        write_json(data_dir / "sim_statevector_top10.json", top10)
+
+        # Submit to AWS Braket via Qiskit provider
+        print(
+            f"[info] Submitting circuit to {DEVICE_NAME} (SHOTS={SHOTS}) via Qiskit Braket provider..."
+        )
         provider = BraketProvider()
         backend = provider.get_backend(DEVICE_NAME)
         tqc = transpile(qc, backend=backend)
-        job = backend.run(tqc, shots=SHOTS)
-        job_id = job.job_id()
-        print(f"[info] Submitted Braket job: {job_id}")
-        write_text(data_dir / "job_id.txt", str(job_id))
 
-        # Save minimal backend/job metadata
-        write_json(
-            data_dir / "job_metadata.json",
-            {
-                "backend": backend.name,
-                "device": DEVICE_NAME,
-                "SHOTS": SHOTS,
-                "job_id": job_id,
-                "submitted_at": datetime.now().isoformat(timespec="seconds"),
-            },
-        )
+        # Save transpiled circuit artifacts as well (text + QPY)
+        write_text(data_dir / "qiskit_circuit_transpiled.txt", str(tqc))
+        with open(data_dir / "qiskit_circuit_transpiled.qpy", "wb") as f:
+            qpy.dump(tqc, f)
 
-        print(f"[info] Submission artifacts saved under: {data_dir}")
+        tqc.draw(output="mpl", fold=-1)
+        plt.show()
+
+        # job = backend.run(tqc, shots=SHOTS)
+        # job_id = job.job_id()
+        # print(f"[info] Submitted Braket job: {job_id}")
+        # write_text(data_dir / "job_id.txt", str(job_id))
+        #
+        # # Save minimal backend/job metadata
+        # write_json(
+        #     data_dir / "job_metadata.json",
+        #     {
+        #         "backend": getattr(backend, "name", getattr(backend, "__str__", lambda: "?")()),
+        #         "device": DEVICE_NAME,
+        #         "SHOTS": SHOTS,
+        #         "job_id": job_id,
+        #         "submitted_at": datetime.now().isoformat(timespec="seconds"),
+        #     },
+        # )
+        #
+        # print(f"[info] Submission and local simulation artifacts saved under: {data_dir}")
 
 
 def fetch(time_tag: str):
@@ -153,10 +218,8 @@ def fetch(time_tag: str):
 
         job = retrieve_job(job_id)
         # Save current status
-        try:
-            status = str(job.status())
-        except Exception:
-            status = "unknown"
+        status = str(job.status())
+        status = "unknown"
         write_text(run_dir / "job_status.txt", status + "\n")
         print(f"[info] Current job status: {status}")
 
@@ -170,13 +233,7 @@ def fetch(time_tag: str):
         result = job.result()
 
         # Fetch counts from Qiskit Result
-        try:
-            counts = result.get_counts()
-        except Exception:
-            try:
-                counts = result.results[0].data.counts  # type: ignore[attr-defined]
-            except Exception:
-                counts = None
+        counts = result.get_counts()
 
         print("\nMeasurement counts (top 10):")
         if counts:
@@ -193,73 +250,6 @@ def fetch(time_tag: str):
             write_text(run_dir / "measurement_counts.txt", "no counts returned\n")
 
         print(f"[info] Result artifacts saved under: {run_dir}")
-
-
-def _fetch_one(run_dir: Path) -> None:
-    """
-    Retrieve results for a single submission directory if the job completed.
-    Writes status to `job_status.txt` and, when available, saves
-    `measurement_counts.json` and `measurement_counts_top10.json`.
-    """
-    if not run_dir.exists():
-        print(f"[warn] Run directory does not exist: {run_dir}")
-        return
-
-    job_meta_path = run_dir / "job_metadata.json"
-    job_id_path = run_dir / "job_id.txt"
-    if not job_meta_path.exists() or not job_id_path.exists():
-        print(f"[warn] Missing job_metadata.json or job_id.txt in {run_dir}")
-        return
-
-    job_meta = json.loads(job_meta_path.read_text())
-    job_id = job_id_path.read_text().strip()
-    device_meta = job_meta.get("device", DEVICE_NAME)
-
-    print(f"[info] Retrieving job {job_id} on backend {device_meta}...")
-    provider = BraketProvider()
-    backend = provider.get_backend(device_meta)
-
-    try:
-        retrieve_job = getattr(backend, "retrieve_job")
-    except AttributeError:
-        print("[error] Backend does not support retrieve_job(job_id)")
-        return
-
-    job = retrieve_job(job_id)
-    try:
-        status = str(job.status())
-    except Exception:
-        status = "unknown"
-    write_text(run_dir / "job_status.txt", status + "\n")
-    print(f"[info] Current job status: {status}")
-
-    status_upper = status.upper()
-    if not any(s in status_upper for s in ["DONE", "COMPLETED", "SUCCESS"]):
-        print("[info] Job not completed yet. Skipping for now.")
-        return
-
-    print("[info] Job completed. Fetching results...")
-    result = job.result()
-
-    # Try to obtain counts in a provider-agnostic way
-    try:
-        counts = result.get_counts()
-    except Exception:
-        try:
-            counts = result.results[0].data.counts  # type: ignore[attr-defined]
-        except Exception:
-            counts = None
-
-    if counts:
-        write_json(run_dir / "measurement_counts.json", dict(counts))
-        sorted_items = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)[:10]
-        write_json(
-            run_dir / "measurement_counts_top10.json",
-            {k: v for k, v in sorted_items},
-        )
-        print(f"[info] Saved counts for: {run_dir}")
-    else:
-        print(f"[info] No counts returned for: {run_dir}")
 
 
 def fetch_all() -> None:
@@ -317,22 +307,6 @@ def build_h4_rhf_uhf(R: float = 2.0) -> Tuple[gto.Mole, scf.RHF, scf.UHF]:
     return mol, rhf, uhf
 
 
-def submit_qiskit_job(
-    qc: QuantumCircuit,
-    shots: int,
-    device_name: str,
-):
-    """
-    Submit a Qiskit circuit to an AWS Braket backend without waiting.
-    Returns the provider Job object (non-blocking).
-    """
-    provider = BraketProvider()
-    backend = provider.get_backend(device_name)
-    tqc = transpile(qc, backend=backend)
-    job = backend.run(tqc, shots=shots)
-    return job
-
-
 def now_tag() -> str:
     return datetime.now().strftime("%Y%m%d-%H%M%S")
 
@@ -347,11 +321,6 @@ def write_text(path: Path, content: str) -> None:
 
 def write_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2))
-
-
-# Note: region parsing and explicit AwsSession handling removed to mirror
-# 04b_qiskit_to_braket.py usage which relies on default AWS configuration
-# available to the qiskit-braket-provider.
 
 
 if __name__ == "__main__":

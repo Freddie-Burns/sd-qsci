@@ -12,8 +12,8 @@ from sd_qsci import analysis, plot
 
 
 # Minimal, hard-coded configuration. Change these for each run.
-# You can pass a single tag as a string or multiple tags as a list of strings.
-# When multiple tags are provided, measurement counts are combined (summed)
+# You can pass a single tag as a string or multiple DATE_TAGS as a list of strings.
+# When multiple DATE_TAGS are provided, measurement counts are combined (summed)
 # and analysis is performed on the aggregated distribution.
 DATE_TAGS: list[str] | str = [
     "20260119-170454",
@@ -26,59 +26,41 @@ DATE_TAGS: list[str] | str = [
 
 def main():
     base_dir = Path(__file__).resolve().parent
-    # Normalize to list of tags
-    if isinstance(DATE_TAGS, str):
-        tags = [DATE_TAGS]
-    else:
-        tags = list(DATE_TAGS)
+    out_dir = get_data_dir()
 
-    # Output directory: if multiple tags, store under a combined folder name
-    if len(tags) == 1:
-        out_tag = tags[0]
-    else:
-        # Keep it readable while unique
-        out_tag = "combined__" + "__".join(tags)
-
-    data_dir = base_dir / "data" / out_tag
-    data_dir.mkdir(parents=True, exist_ok=True)
-
-    # Load counts from all tags and sum them
+    # Load counts from all DATE_TAGS and sum them
     per_tag_counts: list[dict[str, int]] = []
-    max_key_len = 0
-    meta = None
-    for i, tag in enumerate(tags):
+    for i, tag in enumerate(DATE_TAGS):
         in_path = base_dir / "data" / tag / "measurement_counts.json"
-        meta_path = base_dir / "data" / tag / "metadata.json"
 
         with in_path.open("r", encoding="utf-8") as f:
-            payload = json.load(f)
-        counts_i = payload.get("measurement_counts", payload)
-        # Ensure values are ints and track maximum key length
-        clean_counts_i: dict[str, int] = {}
-        for k, v in counts_i.items():
-            ks = str(k)
-            max_key_len = max(max_key_len, len(ks))
-            try:
-                clean_counts_i[ks] = int(v)
-            except Exception:
-                # Fall back to float->int if needed
-                clean_counts_i[ks] = int(float(v))
-        per_tag_counts.append(clean_counts_i)
+            counts_i = json.load(f)
+        per_tag_counts.append(counts_i)
 
-        # Load metadata from the first tag only (assumed identical across tags)
-        if i == 0:
-            with meta_path.open("r", encoding="utf-8") as mf:
-                meta = json.load(mf)
+    # Load metadata from the first tag only (assumed identical across DATE_TAGS)
+    meta_path = base_dir / "data" / DATE_TAGS[0] / "metadata.json"
+    with meta_path.open("r", encoding="utf-8") as mf:
+        meta = json.load(mf)
 
-    assert meta is not None, "No metadata loaded; check DATE_TAGS paths."
-
-    # Combine and normalize keys to the global max bit-length
+    # Combine counts directly (keys are guaranteed to have the same length)
     combined: dict[str, int] = {}
     for counts_i in per_tag_counts:
         for k, v in counts_i.items():
-            k_pad = k.zfill(max_key_len)
-            combined[k_pad] = combined.get(k_pad, 0) + int(v)
+            combined[k] = combined.get(k, 0) + int(v)
     counts = combined
+
+    # Save combined counts and top-10 counts into the output directory
+    # (for multiple DATE_TAGS this will be the combined_* folder)
+    out_counts_path = out_dir / "measurement_counts.json"
+    with out_counts_path.open("w", encoding="utf-8") as f:
+        json.dump(counts, f, indent=2, sort_keys=True)
+
+    # Top-10 by count (descending)
+    top10_items = sorted(counts.items(), key=lambda kv: int(kv[1]), reverse=True)[:10]
+    top10_counts = {k: int(v) for k, v in top10_items}
+    out_top10_path = out_dir / "measurement_counts_top10.json"
+    with out_top10_path.open("w", encoding="utf-8") as f:
+        json.dump(top10_counts, f, indent=2, sort_keys=True)
 
     # Infer qubit count and construct ordered basis
     n = max(len(k) for k in counts.keys())
@@ -115,11 +97,23 @@ def main():
     conv_results = analysis.calc_convergence_data(qc_results, spin_symm=True)
 
     # Save data to CSV
-    analysis.save_convergence_data(data_dir, qc_results, conv_results)
+    analysis.save_convergence_data(out_dir, qc_results, conv_results)
 
     # Create plots
-    plot.energy_vs_samples(data_dir, qc_results, conv_results, ylog=True)
-    plot.convergence_comparison(data_dir, qc_results, conv_results, ylog=True)
+    plot.energy_vs_samples(out_dir, qc_results, conv_results, ylog=True)
+    plot.convergence_comparison(out_dir, qc_results, conv_results, ylog=True)
+
+    # Plot statevector amplitudes as a bar graph (and full log plot),
+    # reusing the helper from src/sd_qsci/plot.py as in 08_spin_recovery
+    plot.statevector_coefficients(
+        qc_results.sv.data,
+        qc_results.fci_vec,
+        out_dir,
+        n_top=20,
+        ylog=False,
+        include_spin_recovered=True,
+        qsci_label='Counts SV',
+    )
 
     # Minimal output summary
     np.set_printoptions(precision=8, suppress=True)
@@ -127,6 +121,21 @@ def main():
     print("RHF energy:", float(rhf.e_tot))
     print("UHF energy:", float(qc_results.uhf.e_tot))
     print("FCI energy:", float(qc_results.fci_energy))
+
+
+def get_data_dir():
+    """
+    Output directory: if multiple DATE_TAGS,
+    store under a combined folder name.
+    """
+    base_dir = Path(__file__).resolve().parent
+    if len(DATE_TAGS) == 1:
+        out_tag = DATE_TAGS[0]
+    else:
+        out_tag = "combined_" + "_".join(DATE_TAGS)
+    data_dir = base_dir / "data" / out_tag
+    data_dir.mkdir(parents=True, exist_ok=True)
+    return data_dir
 
 
 if __name__ == "__main__":
