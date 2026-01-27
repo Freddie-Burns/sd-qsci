@@ -1,0 +1,14 @@
+{
+  "device": "Forte 1",
+  "shots": 100,
+  "job_ids": [
+    "arn:aws:braket:us-east-1:468227866156:quantum-task/fc961f96-d4d2-4d29-898c-693e0e5d91c2",
+    "arn:aws:braket:us-east-1:468227866156:quantum-task/232216fc-2a89-40da-a46c-3801f1f32720",
+    "arn:aws:braket:us-east-1:468227866156:quantum-task/bc1922a2-6218-4db3-bb6e-7c0aaff0328f",
+    "arn:aws:braket:us-east-1:468227866156:quantum-task/25f15488-4920-420f-8f30-2dcd407c6191",
+    "arn:aws:braket:us-east-1:468227866156:quantum-task/0ea2504a-b650-476d-acbf-4d155cef545f",
+    "arn:aws:braket:us-east-1:468227866156:quantum-task/557c7b27-4ebc-47c5-9116-6d14e5a6d929",
+    "arn:aws:braket:us-east-1:468227866156:quantum-task/069ff93e-82f9-4c18-8b7c-e9919db96986",
+    "arn:aws:braket:us-east-1:468227866156:quantum-task/24810614-68dd-4a21-aaa6-0d2b5f07fcaa"
+  ]
+}

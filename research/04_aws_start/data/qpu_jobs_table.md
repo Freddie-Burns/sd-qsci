@@ -20,6 +20,7 @@ This table lists each run directory that contains a `metadata.json`, showing the
 | 20260120-104452   | Forte 1             | 1000    | H 0 0 0; H 0 0 2.0; H 0 0 4.0; H 0 0 6.0 |
 | 20260120-104508   | Forte 1             | 1000    | H 0 0 0; H 0 0 2.0; H 0 0 4.0; H 0 0 6.0 |
 | 20260120-104531   | Forte 1             | 1000    | H 0 0 0; H 0 0 2.0; H 0 0 4.0; H 0 0 6.0 |
+| 20260123-153538   | Forte 1             | 100     | 8 circuits: X on qubit 1..8 |
 
 Notes
 - Older runs (2026-01-14) used `bond_length_angstrom` in `metadata.json`; geometry is displayed as a bond length.

@@ -1,0 +1,10 @@
+{
+  "device": "Forte 1",
+  "shots": 100,
+  "job_ids": [
+    "arn:aws:braket:us-east-1:468227866156:quantum-task/62be4670-72bc-4ea5-a9b3-4cc4186a4f8b",
+    "arn:aws:braket:us-east-1:468227866156:quantum-task/4cae0510-f378-4658-9d5d-ba04b3594c5e",
+    "arn:aws:braket:us-east-1:468227866156:quantum-task/1f18cf00-089a-4a6a-a114-1efaf3c3e417",
+    "arn:aws:braket:us-east-1:468227866156:quantum-task/1e776375-3e83-4f74-9c64-53dad87b807d"
+  ]
+}
