@@ -284,7 +284,7 @@ def fetch_all() -> None:
     print(f"[info] Found {len(to_process)} run(s) to fetch.")
     for rd in to_process:
         print(f"\n[info] Processing: {rd}")
-        _fetch_one(rd)
+        fetch(rd)
 
 
 def build_h4_rhf_uhf(R: float = 2.0) -> Tuple[gto.Mole, scf.RHF, scf.UHF]:

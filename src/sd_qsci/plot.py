@@ -516,11 +516,7 @@ def statevector_coefficients(
 
     if title is None:
         title = f'Top {n_top} Configuration Coefficients'
-    ax.set_title(
-        f'Top {n_top} Configuration Coefficients',
-        fontsize=14,
-        fontweight='bold',
-    )
+    ax.set_title(title, fontsize=14, fontweight='bold')
 
     if ylog:
         ax.set_yscale('log')
@@ -556,8 +552,10 @@ def statevector_coefficients(
 
     ax2.set_xlabel('Configuration Index (sorted by FCI amplitude)', fontsize=12)
     ax2.set_ylabel('|Coefficient| (log scale)', fontsize=12)
-    ax2.set_title(f'FCI vs {qsci_label} Statevector Coefficients (All Significant Configurations)',
-                  fontsize=14, fontweight='bold')
+    full_title = f'FCI vs {qsci_label} Statevector Coefficients (All Significant Configurations)'
+    if title is not None:
+        full_title = f'{title} — {full_title}'
+    ax2.set_title(full_title, fontsize=14, fontweight='bold')
     ax2.legend(fontsize=11)
     ax2.grid(True, alpha=0.3, which='both')
 
@@ -577,6 +575,126 @@ def statevector_coefficients(
         'overlap_spin_recovered': float(np.abs(np.vdot(fci_vec, qsci_symm_vec))) if include_spin_recovered else 0.0,
     }
     return stats
+
+
+def statevector_coefficients_counts_vs_sim(
+    counts_vec: np.ndarray,
+    sim_vec: np.ndarray,
+    fci_vec: np.ndarray,
+    data_dir: Path,
+    n_top: int = 20,
+    ylog: bool = False,
+    *,
+    include_spin_recovered: bool = True,
+    title_prefix: Optional[str] = None,
+):
+    """
+    Plot combined comparison of FCI, Counts-derived amplitudes, Spin-recovered Counts,
+    Simulated circuit amplitudes, and Spin-recovered Simulated amplitudes.
+
+    Produces two figures saved as 'statevector_coefficients.png' (top-N bar chart)
+    and 'statevector_coefficients_full.png' (all significant configs, log scale)
+    in the provided data_dir.
+    """
+    sns.set_style("whitegrid")
+
+    fci_abs = np.abs(fci_vec)
+    # Spin-recovered vectors (optional)
+    counts_symm_vec = spin_symm_amplitudes(counts_vec) if include_spin_recovered else np.zeros_like(counts_vec)
+    sim_symm_vec = spin_symm_amplitudes(sim_vec) if include_spin_recovered else np.zeros_like(sim_vec)
+
+    # Top-N by FCI amplitude
+    top_indices = np.argsort(fci_abs)[-n_top:][::-1]
+
+    # Extract magnitudes for top-N
+    fci_coefs = fci_abs[top_indices]
+    counts_coefs = np.abs(counts_vec[top_indices])
+    counts_symm_coefs = np.abs(counts_symm_vec[top_indices])
+    sim_coefs = np.abs(sim_vec[top_indices])
+    sim_symm_coefs = np.abs(sim_symm_vec[top_indices])
+
+    fig, ax = plt.subplots(figsize=(16, 9))
+    x = np.arange(n_top)
+
+    # We have up to 5 series: FCI, Counts, Counts(S), Sim, Sim(S)
+    if include_spin_recovered:
+        width = 0.16
+        offsets = (-2*width, -width, 0.0, width, 2*width)
+    else:
+        width = 0.24
+        offsets = (-width/2, width/2)  # FCI, Counts, and Sim will share positions pairwise via plotting order
+
+    # Bars
+    ax.bar(x + offsets[0], fci_coefs, width, label='FCI', color='green', alpha=0.85)
+    ax.bar(x + offsets[1], counts_coefs, width, label='Counts SV', color='purple', alpha=0.85)
+    if include_spin_recovered:
+        ax.bar(x + offsets[2], counts_symm_coefs, width, label='Counts SV (Spin)', color='#D55E00', alpha=0.85)
+        ax.bar(x + offsets[3], sim_coefs, width, label='Sim SV', color='#0072B2', alpha=0.85)
+        ax.bar(x + offsets[4], sim_symm_coefs, width, label='Sim SV (Spin)', color='#56B4E9', alpha=0.85)
+    else:
+        # Without spin series, still show Sim next to Counts
+        ax.bar(x + offsets[1], sim_coefs, width, label='Sim SV', color='#0072B2', alpha=0.85)
+
+    # Labels
+    n_qubits = int(log2(len(fci_vec))) if len(fci_vec) > 0 else 0
+    bitstring_labels = [format(i, f"0{n_qubits}b") for i in top_indices]
+    occupation_labels = [_occupation_vector(bs) for bs in bitstring_labels]
+
+    ax.set_xlabel('Electron configuration', fontsize=12)
+    ax.set_ylabel('|Coefficient|', fontsize=12)
+    top_title = f'Top {n_top} Configuration Coefficients'
+    if title_prefix:
+        top_title = f'{title_prefix} — {top_title}'
+    ax.set_title(top_title, fontsize=14, fontweight='bold')
+    if ylog:
+        ax.set_yscale('log')
+    ax.set_xticks(x)
+    ax.set_xticklabels(occupation_labels, rotation=35, ha='right')
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3, axis='y')
+
+    plt.tight_layout()
+    Path(data_dir).mkdir(parents=True, exist_ok=True)
+    plt.savefig(Path(data_dir) / 'statevector_coefficients.png', dpi=300, bbox_inches='tight')
+    plt.close(fig)
+
+    # Full plot (all significant)
+    fig2, ax2 = plt.subplots(figsize=(16, 9))
+
+    significant_mask = (
+        (fci_abs > 1e-10)
+        | (np.abs(counts_vec) > 1e-10)
+        | (np.abs(sim_vec) > 1e-10)
+        | ((np.abs(counts_symm_vec) > 1e-10) if include_spin_recovered else False)
+        | ((np.abs(sim_symm_vec) > 1e-10) if include_spin_recovered else False)
+    )
+    significant_indices = np.where(significant_mask)[0]
+    sort_order = np.argsort(fci_abs[significant_indices])[::-1]
+    sorted_indices = significant_indices[sort_order]
+
+    x_all = np.arange(len(sorted_indices))
+    ax2.semilogy(x_all, fci_abs[sorted_indices], 'o-', label='FCI', color='green', markersize=3, linewidth=1)
+    ax2.semilogy(x_all, np.abs(counts_vec[sorted_indices]), 's-', label='Counts SV', color='purple', markersize=3, linewidth=1, alpha=0.85)
+    if include_spin_recovered:
+        ax2.semilogy(x_all, np.abs(counts_symm_vec[sorted_indices]), '^-', label='Counts SV (Spin)', color='#D55E00', markersize=3, linewidth=1, alpha=0.9)
+        ax2.semilogy(x_all, np.abs(sim_vec[sorted_indices]), 'd-', label='Sim SV', color='#0072B2', markersize=3, linewidth=1, alpha=0.85)
+        ax2.semilogy(x_all, np.abs(sim_symm_vec[sorted_indices]), 'v-', label='Sim SV (Spin)', color='#56B4E9', markersize=3, linewidth=1, alpha=0.9)
+    else:
+        ax2.semilogy(x_all, np.abs(sim_vec[sorted_indices]), 'd-', label='Sim SV', color='#0072B2', markersize=3, linewidth=1, alpha=0.85)
+
+    ax2.set_xlabel('Configuration Index (sorted by FCI amplitude)', fontsize=12)
+    ax2.set_ylabel('|Coefficient| (log scale)', fontsize=12)
+    full_title = 'FCI vs Counts vs Sim Statevector Coefficients (All Significant Configurations)'
+    if title_prefix:
+        full_title = f'{title_prefix} — {full_title}'
+    ax2.set_title(full_title, fontsize=14, fontweight='bold')
+    ax2.legend(fontsize=10)
+    ax2.grid(True, alpha=0.3, which='both')
+
+    plt.tight_layout()
+    Path(data_dir).mkdir(parents=True, exist_ok=True)
+    plt.savefig(Path(data_dir) / 'statevector_coefficients_full.png', dpi=300, bbox_inches='tight')
+    plt.close(fig2)
 
 
 def _occupation_vector(bitstring: str) -> str:

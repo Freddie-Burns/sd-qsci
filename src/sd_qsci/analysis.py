@@ -357,6 +357,7 @@ def run_quantum_chemistry_calculations(
         rhf: scf.RHF,
         bond_length: Optional[float],
         statevector: Optional["Statevector | np.ndarray"] = None,
+        uhf: Optional[scf.UHF] = None
 ) -> QuantumChemistryResults:
     """
     Run complete quantum chemistry calculations and circuit simulation.
@@ -399,7 +400,8 @@ def run_quantum_chemistry_calculations(
         If orbital rotation verification fails (statevector energy != UHF
         energy) when the statevector is simulated internally.
     """
-    uhf = uhf_from_rhf(mol, rhf)
+    if uhf is None:
+        uhf = uhf_from_rhf(mol, rhf)
     qc = circuit.rhf_uhf_orbital_rotation_circuit(mol, rhf, uhf)
 
     # Determine the statevector: either simulate or use provided one
