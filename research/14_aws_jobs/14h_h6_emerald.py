@@ -77,10 +77,6 @@ patterns = {
 
 rhf = scf.RHF(mol).run()
 
-# Save RHF coefficient matrix
-np.save(DATA_DIR / "rhf_mo_coeff.npy", rhf.mo_coeff)
-np.savetxt(DATA_DIR / "rhf_mo_coeff.txt", rhf.mo_coeff, fmt='% .4f')
-
 provider = BraketProvider()
 backend = provider.get_backend(DEVICE_NAME)
 
@@ -106,6 +102,10 @@ for label, pattern in patterns.items():
     # Prepare output directory for this pattern/run
     data_dir = DATA_DIR / tag
     data_dir.mkdir(parents=True, exist_ok=True)
+
+    # Save RHF coefficient matrix
+    np.save(data_dir / "rhf_mo_coeff.npy", rhf.mo_coeff)
+    np.savetxt(data_dir / "rhf_mo_coeff.txt", rhf.mo_coeff, fmt='% .4f')
 
     # Save UHF coefficient matrices for this pattern
     np.save(data_dir / "uhf_mo_coeff.npy", uhf.mo_coeff)
