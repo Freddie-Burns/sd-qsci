@@ -7,8 +7,7 @@ from pathlib import Path
 import numpy as np
 from pyscf import gto, scf
 
-import multi_uhf_utils as utils
-from sd_qsci import analysis, circuit, plot
+from sd_qsci import analysis, plot, utils
 import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib import patches, transforms

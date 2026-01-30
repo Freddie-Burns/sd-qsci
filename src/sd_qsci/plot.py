@@ -443,12 +443,14 @@ def statevector_coefficients(
     *,
     include_spin_recovered: bool = True,
     qsci_label: str = 'QSCI',
+    filename: str = 'statevector_coefficients.png',
+    include_full: bool = True,
 ):
     """
     Plot comparison of QSCI (or custom label), optional spin-recovered QSCI, and FCI statevector coefficients.
 
     Creates two plots: one showing the top n_top configurations as a bar chart,
-    and another showing all significant configurations on a log scale.
+    and another showing all significant configurations on a log scale (if include_full is True).
     The QSCI series is shown both before and after spin-symmetry recovery.
 
     Parameters
@@ -468,6 +470,10 @@ def statevector_coefficients(
         Whether to include the spin-recovered series in the plots. Defaults to True.
     qsci_label : str, optional
         Legend label to use for the raw QSCI series (e.g., 'LUCJ'). Defaults to 'QSCI'.
+    filename : str, optional
+        Filename for the top-N plot. Defaults to 'statevector_coefficients.png'.
+    include_full : bool, optional
+        Whether to create the "full" plot of all significant configurations. Defaults to True.
 
     Returns
     -------
@@ -527,9 +533,13 @@ def statevector_coefficients(
     ax.grid(True, alpha=0.3, axis='y')
 
     plt.tight_layout()
-    (Path(data_dir) / 'statevector_coefficients.png').parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(Path(data_dir) / 'statevector_coefficients.png', dpi=300, bbox_inches='tight')
+    (Path(data_dir) / filename).parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(Path(data_dir) / filename, dpi=300, bbox_inches='tight')
     plt.close(fig)
+
+    if not include_full:
+        # Return empty stats if not doing full analysis
+        return {}
 
     fig2, ax2 = plt.subplots(figsize=(14, 8))
 
@@ -560,8 +570,10 @@ def statevector_coefficients(
     ax2.grid(True, alpha=0.3, which='both')
 
     plt.tight_layout()
-    (Path(data_dir) / 'statevector_coefficients_full.png').parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(Path(data_dir) / 'statevector_coefficients_full.png', dpi=300, bbox_inches='tight')
+    # Add suffix for the full plot
+    full_filename = Path(filename).stem + '_full' + Path(filename).suffix
+    (Path(data_dir) / full_filename).parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(Path(data_dir) / full_filename, dpi=300, bbox_inches='tight')
     plt.close(fig2)
 
     # Return some stats for programmatic use

@@ -1,0 +1,1 @@
+arn:aws:braket:eu-north-1:468227866156:quantum-task/b4963aff-8cc0-416c-8193-0be7588f3149

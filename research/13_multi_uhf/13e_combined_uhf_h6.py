@@ -19,8 +19,7 @@ import seaborn as sns
 from matplotlib import patches, transforms
 from pyscf import gto, scf
 
-import multi_uhf_utils as utils
-from sd_qsci import analysis, circuit, hamiltonian, plot
+from sd_qsci import analysis, circuit, hamiltonian, plot, utils
 from sd_qsci.analysis import spin_closed_subspace_sizes
 
 # Setup
@@ -109,6 +108,15 @@ plot.statevector_coefficients(
     n_top=20,
     title="Combined vs FCI Amplitudes"
 )
+plot.statevector_coefficients(
+    combined_qc_results.sv.data,
+    combined_qc_results.fci_vec,
+    data_dir,
+    n_top=40,
+    filename='statevector_coefficients_top40.png',
+    include_full=False,
+    title="Combined vs FCI Amplitudes (Top 40)"
+)
 
 # Also plot for individual solutions
 for label, (qc_res, conv_res) in all_results.items():
@@ -122,6 +130,15 @@ for label, (qc_res, conv_res) in all_results.items():
         pattern_dir,
         n_top=20,
         title=f"{label} vs FCI Amplitudes"
+    )
+    plot.statevector_coefficients(
+        qc_res.sv.data,
+        qc_res.fci_vec,
+        pattern_dir,
+        n_top=40,
+        filename='statevector_coefficients_top40.png',
+        include_full=False,
+        title=f"{label} vs FCI Amplitudes (Top 40)"
     )
 
 

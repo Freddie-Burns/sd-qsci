@@ -1,0 +1,8 @@
+{
+  "backend": "Emerald",
+  "device": "Emerald",
+  "SHOTS": 10000,
+  "job_id": "arn:aws:braket:eu-north-1:468227866156:quantum-task/3dd67755-3d20-4b8f-97e8-7c162bf18ed9",
+  "optimisation": 3,
+  "submitted_at": "2026-01-30T22:28:09"
+}

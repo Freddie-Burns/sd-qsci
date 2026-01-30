@@ -40,7 +40,7 @@ class BraketDevice(Enum):
     """Canonical selection of target devices (names as used by qiskit-braket-provider)."""
     # us-east-1
     ARIA_1 = "Aria-1"
-    AQUILA = "Aquila"
+    AQUILA = "Aquila" # atom annealling computer
     FORTE_1 = "Forte 1"
     FORTE_ENTERPRISE_1 = "Forte Enterprise 1"
 

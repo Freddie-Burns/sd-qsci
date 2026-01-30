@@ -1,0 +1,7 @@
+{
+  "backend": "Ankaa-3",
+  "device": "Ankaa-3",
+  "SHOTS": 10000,
+  "job_id": "arn:aws:braket:us-west-1:468227866156:quantum-task/b58b42bc-aeb6-41f5-a264-aafe28ac7c69",
+  "submitted_at": "2026-01-30T20:36:39"
+}

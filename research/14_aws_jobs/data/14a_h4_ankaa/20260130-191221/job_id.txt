@@ -1,0 +1,1 @@
+arn:aws:braket:us-west-1:468227866156:quantum-task/8c7989c7-ec60-430b-91e9-3b0e2ac7659d

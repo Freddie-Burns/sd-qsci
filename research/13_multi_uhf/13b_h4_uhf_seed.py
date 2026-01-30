@@ -1,9 +1,7 @@
-import numpy as np
 from matplotlib import pyplot as plt
-from pyscf import gto, scf
+from pyscf import gto
 
-import multi_uhf_utils as utils
-
+from sd_qsci import utils
 
 # Define H4 in a line
 mol = gto.M(

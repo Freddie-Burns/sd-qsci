@@ -1,0 +1,12 @@
+{
+  "molecule": "H4",
+  "geometry": "\n    H 0 0 0.0\n    H 0 0 1.5\n    H 0 0 3.0\n    H 0 0 4.5\n    ",
+  "basis": "sto-3g",
+  "n_qubits": 8,
+  "device": "Ankaa-3",
+  "SHOTS": 10000,
+  "uhf_spin_seed": "antiferromagnetic",
+  "rhf_energy": -1.8291374123526865,
+  "uhf_energy": -1.9327383581458535,
+  "created_at": "2026-01-30T22:22:23"
+}

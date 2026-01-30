@@ -1,0 +1,12 @@
+{
+  "molecule": "H6",
+  "geometry": "\n    H 0 0 0.0\n    H 0 0 2.0\n    H 0 0 4.0\n    H 0 0 6.0\n    H 0 0 8.0\n    H 0 0 10.0\n    ",
+  "basis": "sto-3g",
+  "n_qubits": 12,
+  "device": "Emerald",
+  "SHOTS": 10000,
+  "uhf_spin_seed": "ferromagnetic",
+  "rhf_energy": -2.368421284279993,
+  "uhf_energy": -2.7691410110935637,
+  "created_at": "2026-01-30T22:19:44"
+}

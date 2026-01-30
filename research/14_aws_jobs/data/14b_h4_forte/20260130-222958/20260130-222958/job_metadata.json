@@ -1,0 +1,8 @@
+{
+  "backend": "Forte 1",
+  "device": "Forte 1",
+  "SHOTS": 1000,
+  "job_id": "arn:aws:braket:us-east-1:468227866156:quantum-task/b9d8f3a2-c285-4cba-b8ec-f9f1913ff005",
+  "optimisation": 3,
+  "submitted_at": "2026-01-30T22:30:01"
+}

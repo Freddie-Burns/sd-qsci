@@ -1,0 +1,8 @@
+{
+  "backend": "Garnet",
+  "device": "Garnet",
+  "SHOTS": 10000,
+  "job_id": "arn:aws:braket:eu-north-1:468227866156:quantum-task/34a9f88a-d15a-4494-8172-e1de663e3029",
+  "optimisation": 3,
+  "submitted_at": "2026-01-30T22:26:22"
+}
