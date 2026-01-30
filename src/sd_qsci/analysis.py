@@ -375,6 +375,9 @@ def run_quantum_chemistry_calculations(
         Restricted Hartree-Fock object.
     bond_length : float, optional
         Bond length for reference. Default is None.
+    uhf: scf.UHF, optional
+        UHF object to use for orbital rotation.
+        If not provided, it is computed
 
     Parameters
     -------

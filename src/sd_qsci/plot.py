@@ -161,7 +161,7 @@ def energy_vs_samples(
     qc_results: QuantumChemistryResults,
     conv_results: ConvergenceResults,
     title_prefix: Optional[str] = None,
-    ylog: True = False,
+    ylog: bool = False,
     label_raw: str = 'UHF State',
     label_spin: str = 'UHF State Spin Recovered',
 ):

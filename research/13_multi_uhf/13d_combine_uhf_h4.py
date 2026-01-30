@@ -1,20 +1,128 @@
 """
-Create orbital rotational circuits for multiple UHF solutions.
+Combine RHF basis counts from multiple UHF solutions.
+Compare resulting energy calculations to FCI energy.
+
+1) Seed two UHF solutions with different spin patterns
+2) Run quantum chemistry calculations for each solution
+3) Create and simulate orbital rotation circuit from UHF to RHF.
+4) Combine results into single statevector that would be reconstructed
+   from the likely counts.
+5) Run spin recovery on this statevector.
+6) Calculate energy per subspace and samples.
 """
 
 from pathlib import Path
 
 import numpy as np
-from pyscf import gto, scf
-
-import multi_uhf_utils as utils
-from sd_qsci import analysis, circuit, plot
 import matplotlib.pyplot as plt
 import seaborn as sns
 from matplotlib import patches, transforms
+from pyscf import gto, scf
+
+import multi_uhf_utils as utils
+from sd_qsci import analysis, circuit, hamiltonian, plot
 from sd_qsci.analysis import spin_closed_subspace_sizes
 
 
+# Setup
+bond_length = 2.0
+n_atoms = 4
+print(f"Running H{n_atoms} chain bond length: {bond_length:.2f} Angstrom")
+
+# Save under this script's full stem name inside this script's folder
+stem = Path(__file__).stem
+data_dir = Path(
+    __file__).parent / 'data' / stem
+
+# Run quantum chemistry calculations
+# Define H4 in a line
+mol = gto.M(
+    atom='''
+    H 0 0 0
+    H 0 0 2
+    H 0 0 4
+    H 0 0 6
+    ''',
+    basis='sto-3g',
+    spin=0,
+    charge=0
+)
+
+patterns = {
+    "up down up down": [1, -1, 1, -1],  # antiferromagnetic: lowest energy soln
+    "up up down down": [1, 1, -1, -1],  # ferromagnetic: higher energy soln
+}
+
+rhf = scf.RHF(mol).run()
+H = hamiltonian.hamiltonian_from_pyscf(mol, rhf)
+all_results = {}
+statevectors = []
+
+for label, pattern in patterns.items():
+    print(f"\n--- Running for pattern: {label} ---")
+    # SCF to UHF solution from seeded spin pattern.
+    uhf = utils.solve_with_spin_pattern(mol, pattern, label)
+
+    #
+    qc_res = analysis.run_quantum_chemistry_calculations(
+        mol,
+        rhf,
+        bond_length,
+        uhf=uhf,
+    )
+    conv_res = analysis.calc_convergence_data(qc_res, spin_symm=True)
+    all_results[label] = (qc_res, conv_res)
+
+    qc = circuit.rhf_uhf_orbital_rotation_circuit(mol, rhf, uhf)
+    statevectors.append(circuit.simulate(qc))
+
+# Combine statevectors
+combined_probs = np.zeros(statevectors[0].shape)
+for sv in statevectors:
+    probs = sv.data * np.conj(sv.data)
+    combined_probs += probs.real
+combined_probs /= len(statevectors)  # Average probabilities
+combined_amps = np.sqrt(combined_probs)
+
+print("\n--- Running for Combined Amplitudes ---")
+# Use the combined amplitudes as the statevector
+combined_qc_results = analysis.run_quantum_chemistry_calculations(
+    mol,
+    rhf,
+    bond_length,
+    statevector=combined_amps,
+)
+combined_conv_results = analysis.calc_convergence_data(combined_qc_results, spin_symm=True)
+all_results["Combined"] = (combined_qc_results, combined_conv_results)
+
+# Plots
+print(f"Creating plots in {data_dir}...")
+data_dir.mkdir(parents=True, exist_ok=True)
+
+# Plot coefficients for combined vs FCI
+plot.statevector_coefficients(
+    combined_qc_results.sv.data,
+    combined_qc_results.fci_vec,
+    data_dir,
+    n_top=20,
+    title="Combined vs FCI Amplitudes"
+)
+
+# Also plot for individual solutions
+for label, (qc_res, conv_res) in all_results.items():
+    if label == "Combined":
+        continue
+    pattern_dir = data_dir / label.replace(" ", "_")
+    pattern_dir.mkdir(parents=True, exist_ok=True)
+    plot.statevector_coefficients(
+        qc_res.sv.data,
+        qc_res.fci_vec,
+        pattern_dir,
+        n_top=20,
+        title=f"{label} vs FCI Amplitudes"
+    )
+
+# Use comparison plots from 13c
 def compare_convergence_custom(data_dir, results_dict, title_prefix=None):
     sns.set_style("whitegrid")
     fig, ax = plt.subplots(figsize=(12, 8))
@@ -95,78 +203,5 @@ def compare_energy_vs_samples_custom(data_dir, results_dict, title_prefix=None):
     plt.savefig(data_dir / 'compare_energy_vs_samples.png', dpi=300)
     plt.close()
 
-
-# Setup
-bond_length = 2.0
-n_atoms = 4
-print(f"Running H{n_atoms} chain bond length: {bond_length:.2f} Angstrom")
-
-# Save under this script's full stem name inside this script's folder
-stem = Path(__file__).stem
-data_dir = Path(__file__).parent / 'data' / stem
-
-# Run quantum chemistry calculations
-# Define H4 in a line
-mol = gto.M(
-    atom='''
-    H 0 0 0
-    H 0 0 2
-    H 0 0 4
-    H 0 0 6
-    ''',
-    basis='sto-3g',
-    spin=0,
-    charge=0
-)
-
-patterns = {
-    "up down up down": [1, -1, 1, -1], # antiferromagnetic: lowest energy soln
-    "up up down down": [1, 1, -1, -1], # ferromagnetic: higher energy soln
-}
-
-rhf = scf.RHF(mol).run()
-all_results = {}
-
-for label, pattern in patterns.items():
-    print(f"\n--- Running for pattern: {label} ---")
-    uhf = utils.solve_with_spin_pattern(mol, pattern, label)
-    qc_results = analysis.run_quantum_chemistry_calculations(
-        mol, rhf, bond_length, uhf=uhf)
-    
-    # Calculate convergence data
-    conv_results = analysis.calc_convergence_data(qc_results, spin_symm=True)
-    
-    # Store results
-    all_results[label] = (qc_results, conv_results)
-    
-    # Plot individual data/plots
-    pattern_dir = data_dir / label.replace(" ", "_")
-    analysis.save_convergence_data(pattern_dir, qc_results, conv_results)
-    plot.energy_vs_samples(pattern_dir, qc_results, conv_results, ylog=True)
-    plot.convergence_comparison(pattern_dir, qc_results, conv_results, ylog=True)
-    
-    # Compute final QSCI wavefunction and plot coefficients
-    print(f"Computing QSCI ground state wavefunction with {conv_results.max_size} configurations...")
-    qsci_energy_final, qsci_vec, qsci_indices = analysis.calc_qsci_energy_with_size(
-        qc_results.H,
-        qc_results.sv,
-        conv_results.max_size, return_vector=True,
-    )
-    
-    plot.statevector_coefficients(
-        qc_results.sv.data,
-        qc_results.fci_vec,
-        pattern_dir,
-        n_top=20,
-    )
-    plot.total_spin_vs_subspace(
-        data_dir=pattern_dir,
-        qc_results=qc_results,
-        conv_results=conv_results,
-        title_prefix=f"H{n_atoms} Chain ({label})"
-    )
-
-# Create comparison plots
-print(f"\nCreating comparison plots in {data_dir}...")
-compare_convergence_custom(data_dir, all_results, title_prefix=f"H{n_atoms} Chain Comparison")
-compare_energy_vs_samples_custom(data_dir, all_results, title_prefix=f"H{n_atoms} Chain Comparison")
+compare_convergence_custom(data_dir, all_results, title_prefix=f"H{n_atoms} Combined Comparison")
+compare_energy_vs_samples_custom(data_dir, all_results, title_prefix=f"H{n_atoms} Combined Comparison")
