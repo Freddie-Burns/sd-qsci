@@ -1,0 +1,115 @@
+{
+  "origins": [
+    {
+      "path": "/home/fredd/code/sd-qsci/research/14_aws_jobs/data/14b_h4_forte/20260130-222513/20260130-222514",
+      "original_metadata": {
+        "backend": "Forte 1",
+        "device": "Forte 1",
+        "SHOTS": 1000,
+        "job_id": "arn:aws:braket:us-east-1:468227866156:quantum-task/bffaba3b-a1f9-4860-adfd-065bdf5b6864",
+        "optimisation": 3,
+        "submitted_at": "2026-01-30T22:25:14"
+      }
+    },
+    {
+      "path": "/home/fredd/code/sd-qsci/research/14_aws_jobs/data/14b_h4_forte/20260130-222513/20260130-222516",
+      "original_metadata": {
+        "backend": "Forte 1",
+        "device": "Forte 1",
+        "SHOTS": 1000,
+        "job_id": "arn:aws:braket:us-east-1:468227866156:quantum-task/399afe83-c3ff-4391-a6fb-9154a2d8ee58",
+        "optimisation": 3,
+        "submitted_at": "2026-01-30T22:25:17"
+      }
+    },
+    {
+      "path": "/home/fredd/code/sd-qsci/research/14_aws_jobs/data/14b_h4_forte/20260130-222513/20260130-222519",
+      "original_metadata": {
+        "backend": "Forte 1",
+        "device": "Forte 1",
+        "SHOTS": 1000,
+        "job_id": "arn:aws:braket:us-east-1:468227866156:quantum-task/30d2c5b3-66c0-4d69-8cbe-42b6ed9053f5",
+        "optimisation": 3,
+        "submitted_at": "2026-01-30T22:25:20"
+      }
+    },
+    {
+      "path": "/home/fredd/code/sd-qsci/research/14_aws_jobs/data/14b_h4_forte/20260130-222513/20260130-222522",
+      "original_metadata": {
+        "backend": "Forte 1",
+        "device": "Forte 1",
+        "SHOTS": 1000,
+        "job_id": "arn:aws:braket:us-east-1:468227866156:quantum-task/cf444323-d67c-4fac-9a8b-238b4ff8d4d9",
+        "optimisation": 3,
+        "submitted_at": "2026-01-30T22:25:23"
+      }
+    },
+    {
+      "path": "/home/fredd/code/sd-qsci/research/14_aws_jobs/data/14b_h4_forte/20260130-222513/20260130-222525",
+      "original_metadata": {
+        "backend": "Forte 1",
+        "device": "Forte 1",
+        "SHOTS": 1000,
+        "job_id": "arn:aws:braket:us-east-1:468227866156:quantum-task/8d8c3016-7163-43ce-8e78-ea9b160f299a",
+        "optimisation": 3,
+        "submitted_at": "2026-01-30T22:25:26"
+      }
+    },
+    {
+      "path": "/home/fredd/code/sd-qsci/research/14_aws_jobs/data/14b_h4_forte/20260130-222513/20260130-222528",
+      "original_metadata": {
+        "backend": "Forte 1",
+        "device": "Forte 1",
+        "SHOTS": 1000,
+        "job_id": "arn:aws:braket:us-east-1:468227866156:quantum-task/8e9ac6bf-56d3-4116-86cc-92219c4ba99e",
+        "optimisation": 3,
+        "submitted_at": "2026-01-30T22:25:29"
+      }
+    },
+    {
+      "path": "/home/fredd/code/sd-qsci/research/14_aws_jobs/data/14b_h4_forte/20260130-222513/20260130-222531",
+      "original_metadata": {
+        "backend": "Forte 1",
+        "device": "Forte 1",
+        "SHOTS": 1000,
+        "job_id": "arn:aws:braket:us-east-1:468227866156:quantum-task/69e02e8c-110c-447b-a466-738e12bc6756",
+        "optimisation": 3,
+        "submitted_at": "2026-01-30T22:25:32"
+      }
+    },
+    {
+      "path": "/home/fredd/code/sd-qsci/research/14_aws_jobs/data/14b_h4_forte/20260130-222513/20260130-222534",
+      "original_metadata": {
+        "backend": "Forte 1",
+        "device": "Forte 1",
+        "SHOTS": 1000,
+        "job_id": "arn:aws:braket:us-east-1:468227866156:quantum-task/fabdd27f-dea8-437e-928e-1839e56e56dc",
+        "optimisation": 3,
+        "submitted_at": "2026-01-30T22:25:35"
+      }
+    },
+    {
+      "path": "/home/fredd/code/sd-qsci/research/14_aws_jobs/data/14b_h4_forte/20260130-222513/20260130-222537",
+      "original_metadata": {
+        "backend": "Forte 1",
+        "device": "Forte 1",
+        "SHOTS": 1000,
+        "job_id": "arn:aws:braket:us-east-1:468227866156:quantum-task/fa698497-94f3-4ba9-b9da-a2ffd2bd2023",
+        "optimisation": 3,
+        "submitted_at": "2026-01-30T22:25:38"
+      }
+    },
+    {
+      "path": "/home/fredd/code/sd-qsci/research/14_aws_jobs/data/14b_h4_forte/20260130-222513/20260130-222540",
+      "original_metadata": {
+        "backend": "Forte 1",
+        "device": "Forte 1",
+        "SHOTS": 1000,
+        "job_id": "arn:aws:braket:us-east-1:468227866156:quantum-task/014b89ab-10a9-42fa-bca9-932af82197d0",
+        "optimisation": 3,
+        "submitted_at": "2026-01-30T22:25:41"
+      }
+    }
+  ],
+  "combined_at": "20260210-110126"
+}

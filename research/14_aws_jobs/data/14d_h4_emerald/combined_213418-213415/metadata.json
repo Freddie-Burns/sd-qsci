@@ -1,0 +1,41 @@
+{
+  "origins": [
+    {
+      "path": "/home/fredd/code/sd-qsci/research/14_aws_jobs/data/14d_h4_emerald/20260130-213418",
+      "timestamp": "20260130-213418",
+      "metadata": {
+        "molecule": "H4",
+        "geometry": "\n    H 0 0 0.0\n    H 0 0 4.0\n    H 0 0 8.0\n    H 0 0 12.0\n    ",
+        "basis": "sto-3g",
+        "n_qubits": 8,
+        "device": "Emerald",
+        "SHOTS": 10000,
+        "uhf_spin_seed": "ferromagnetic",
+        "rhf_energy": -1.229779276655423,
+        "uhf_energy": -1.8663240488887103,
+        "created_at": "2026-01-30T21:34:18"
+      }
+    },
+    {
+      "path": "/home/fredd/code/sd-qsci/research/14_aws_jobs/data/14d_h4_emerald/20260130-213415",
+      "timestamp": "20260130-213415",
+      "metadata": {
+        "molecule": "H4",
+        "geometry": "\n    H 0 0 0.0\n    H 0 0 4.0\n    H 0 0 8.0\n    H 0 0 12.0\n    ",
+        "basis": "sto-3g",
+        "n_qubits": 8,
+        "device": "Emerald",
+        "SHOTS": 10000,
+        "uhf_spin_seed": "antiferromagnetic",
+        "rhf_energy": -1.229779276655423,
+        "uhf_energy": -1.8663345840893915,
+        "created_at": "2026-01-30T21:34:16"
+      }
+    }
+  ],
+  "combined_at": "20260210-114203",
+  "type": "uhf_combined",
+  "geometry": "\n    H 0 0 0.0\n    H 0 0 4.0\n    H 0 0 8.0\n    H 0 0 12.0\n    ",
+  "device": "Emerald",
+  "molecule": "H4"
+}

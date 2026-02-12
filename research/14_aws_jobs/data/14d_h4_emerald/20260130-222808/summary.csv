@@ -1,0 +1,17 @@
+quantity,value
+bond_length,
+rhf_energy,-1.5756164767018648
+uhf_energy,-1.8783518378847535
+fci_energy,-1.8977806459898727
+n_fci_configs,20.0
+n_configs_below_uhf,117.0
+n_configs_reach_fci,235.0
+max_subspace_size,237.0
+min_qsci_energy,-1.8977806459898776
+energy_diff_to_fci,-4.884981308350689e-15
+chemical_accuracy_tol,0.0016
+n_configs_chemacc_qsci,194.0
+n_configs_chemacc_spin_symm,206.0
+n_qubits,8.0
+one_q_gates,108.0
+two_q_gates,16.0

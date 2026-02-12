@@ -1,0 +1,35 @@
+{
+  "origins": [
+    {
+      "path": "/home/fredd/code/sd-qsci/research/14_aws_jobs/data/14e_h6_ankaa/20260130-215918",
+      "original_metadata": {
+        "molecule": "H4",
+        "geometry": "\n    H 0 0 0.0\n    H 0 0 2.0\n    H 0 0 4.0\n    H 0 0 6.0\n    H 0 0 8.0\n    H 0 0 10.0\n    ",
+        "basis": "sto-3g",
+        "n_qubits": 12,
+        "device": "Ankaa-3",
+        "SHOTS": 10000,
+        "uhf_spin_seed": "antiferromagnetic",
+        "rhf_energy": -2.368421284279994,
+        "uhf_energy": -2.8194898991253554,
+        "created_at": "2026-01-30T21:59:18"
+      }
+    },
+    {
+      "path": "/home/fredd/code/sd-qsci/research/14_aws_jobs/data/14e_h6_ankaa/20260130-215923",
+      "original_metadata": {
+        "molecule": "H4",
+        "geometry": "\n    H 0 0 0.0\n    H 0 0 2.0\n    H 0 0 4.0\n    H 0 0 6.0\n    H 0 0 8.0\n    H 0 0 10.0\n    ",
+        "basis": "sto-3g",
+        "n_qubits": 12,
+        "device": "Ankaa-3",
+        "SHOTS": 10000,
+        "uhf_spin_seed": "ferromagnetic",
+        "rhf_energy": -2.368421284279994,
+        "uhf_energy": -2.7691410110935637,
+        "created_at": "2026-01-30T21:59:23"
+      }
+    }
+  ],
+  "combined_at": "20260209-112919"
+}

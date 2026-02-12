@@ -17,7 +17,7 @@ from pyscf import gto, fci, scf
 from qiskit import QuantumCircuit, transpile
 from qiskit_aer import Aer
 from scipy.linalg import eigh
-from scipy.sparse.linalg import eigsh
+from scipy.sparse.linalg import eigsh, ArpackNoConvergence
 from qiskit.quantum_info import Statevector
 
 from sd_qsci.utils import uhf_from_rhf
@@ -292,14 +292,25 @@ def calc_qsci_energy_with_size(
 
     # Solve for the lowest eigenpair only (singlet enforcement removed in analysis)
     N = H_sub.shape[0]
-    if N <= 3:
+    if N <= 50:
         evals, evecs = eigh(H_sub.toarray() if hasattr(H_sub, 'toarray') else H_sub)
         E0 = float(evals[0])
         psi0 = evecs[:, 0]
     else:
-        vals, vecs = eigsh(H_sub, k=1, which='SA')
-        E0 = float(vals[0])
-        psi0 = vecs[:, 0]
+        try:
+            vals, vecs = eigsh(H_sub, k=1, which='SA', maxiter=5000)
+            E0 = float(vals[0])
+            psi0 = vecs[:, 0]
+        except ArpackNoConvergence as e:
+            # Fallback to dense solver if ARPACK fails to converge
+            evals, evecs = eigh(H_sub.toarray() if hasattr(H_sub, 'toarray') else H_sub)
+            E0 = float(evals[0])
+            psi0 = evecs[:, 0]
+        except Exception:
+            # Catch other potential issues (e.g. empty H_sub if n_configs=0)
+            evals, evecs = eigh(H_sub.toarray() if hasattr(H_sub, 'toarray') else H_sub)
+            E0 = float(evals[0])
+            psi0 = evecs[:, 0]
 
     if return_vector:
         psi0_full = np.zeros(data.shape, dtype=complex)
