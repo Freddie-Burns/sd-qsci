@@ -5,60 +5,16 @@ from pathlib import Path
 import numpy as np
 from qiskit.quantum_info import Statevector
 from pyscf import gto, scf
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-from sd_qsci.analysis import run_quantum_chemistry_calculations, calc_convergence_data, save_convergence_data
+from sd_qsci.analysis import run_quantum_chemistry_calculations, calc_convergence_data, save_convergence_data, spin_symm_amplitudes
 from sd_qsci import analysis, plot
+from filter_counts import filter_particle_number_counts
 
 
 FILTER_PARTICLE_NUMBER = True
-
-
-def filter_particle_number_counts(run_dir: Path, counts: dict[str, int], meta: dict) -> dict[str, int]:
-    """Filter counts to only include bitstrings with the correct Hamming weight.
-    
-    Determines the target Hamming weight from metadata (H4 -> 4, H6 -> 6).
-    Saves filtered counts to correct_particle_number_counts.json.
-    """
-    mol_name = meta.get("molecule") or meta.get("geometry_name")
-    
-    if not mol_name:
-        # Fallback to _build_title_prefix logic or just skip if cannot determine
-        print(f"[warning] Could not determine molecule name for {run_dir}. Skipping filtering.")
-        return counts
-
-    target_weight = None
-    if "H4" in mol_name.upper():
-        target_weight = 4
-    elif "H6" in mol_name.upper():
-        target_weight = 6
-    else:
-        print(f"[warning] Unknown molecule {mol_name} for {run_dir}. Skipping filtering.")
-        return counts
-
-    # Collect particle number counts
-    particle_counts = {}
-    for bs, count in counts.items():
-        weight = sum(int(bit) for bit in bs)
-        particle_counts[weight] = particle_counts.get(weight, 0) + count
-
-    # Save particle number counts
-    stats_path = run_dir / "particle_number_counts.json"
-    with open(stats_path, "w", encoding="utf-8") as f:
-        # Convert keys to strings for JSON
-        json.dump({str(k): v for k, v in sorted(particle_counts.items())}, f, indent=2)
-
-    filtered_counts = {
-        bs: count for bs, count in counts.items() 
-        if sum(int(bit) for bit in bs) == target_weight
-    }
-
-    output_path = run_dir / "correct_particle_number_counts.json"
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(filtered_counts, f, indent=2, sort_keys=True)
-    
-    print(f"[process] Saved particle counts to {stats_path}")
-    print(f"[process] Saved filtered counts to {output_path}")
-    return filtered_counts
+SUB_DIR = "14e_h6_ankaa"
 
 
 def _build_title_prefix(meta: dict, *, bond_length: float | None, basis: str | None) -> str | None:
@@ -129,6 +85,71 @@ def _build_title_prefix(meta: dict, *, bond_length: float | None, basis: str | N
 
     return " — ".join(parts) if any(parts) else None
 
+def _plot_all_coefficients_horizontal(
+    qsci_vec: np.ndarray,
+    fci_vec: np.ndarray,
+    run_dir: Path,
+    title_prefix: str | None = None,
+    threshold: float = 1e-6,
+):
+    """Plot all configurations horizontal, ordered by FCI amplitude."""
+    fci_abs = np.abs(fci_vec)
+    qsci_symm_vec = spin_symm_amplitudes(qsci_vec)
+    
+    # Filter configurations where at least one amplitude is above threshold
+    significant_indices = np.where(
+        (fci_abs > threshold) | (np.abs(qsci_vec) > threshold) | (np.abs(qsci_symm_vec) > threshold)
+    )[0]
+    
+    if len(significant_indices) == 0:
+        print(f"[skip] No significant configurations found for horizontal plot in {run_dir}")
+        return
+
+    # Sort significant indices by FCI amplitude (descending)
+    sorted_sig_indices = significant_indices[np.argsort(fci_abs[significant_indices])[::-1]]
+    
+    qsci_coefs = np.abs(qsci_vec[sorted_sig_indices])
+    qsci_symm_coefs = np.abs(qsci_symm_vec[sorted_sig_indices])
+    fci_coefs = fci_abs[sorted_sig_indices]
+    
+    n_qubits = int(np.log2(len(fci_vec))) if len(fci_vec) > 0 else 0
+    bitstring_labels = [format(i, f"0{n_qubits}b") for i in sorted_sig_indices]
+    
+    # Create the plot
+    sns.set_style("whitegrid")
+    # Height proportional to number of configurations to keep it "thin and long"
+    fig_height = max(8, len(sorted_sig_indices) * 0.25)
+    fig, ax = plt.subplots(figsize=(10, fig_height))
+    
+    y = np.arange(len(sorted_sig_indices))
+    height = 0.28
+    
+    ax.barh(y + height, fci_coefs, height, label='FCI', color='green', alpha=0.8)
+    ax.barh(y, qsci_coefs, height, label='Counts SV', color='purple', alpha=0.8)
+    ax.barh(y - height, qsci_symm_coefs, height, label='Counts SV (Spin Recovered)', color='#D55E00', alpha=0.8)
+    
+    ax.set_yticks(y)
+    ax.set_yticklabels(bitstring_labels, fontsize=8)
+    ax.invert_yaxis()  # Largest FCI at the top
+    
+    ax.set_xlabel('|Coefficient|', fontsize=12)
+    ax.set_ylabel('Electron configuration', fontsize=12)
+    
+    title = "All Configuration Amplitudes (ordered by FCI)"
+    if title_prefix:
+        title = f"{title_prefix} — {title}"
+    ax.set_title(title, fontsize=14, fontweight='bold')
+    
+    ax.legend(fontsize=10, loc='upper right')
+    ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    out_path = run_dir / 'statevector_coefficients_horizontal_all.png'
+    plt.savefig(out_path, dpi=300, bbox_inches='tight')
+    plt.close(fig)
+    print(f"[info] Horizontal plot saved to {out_path}")
+
+
 def analyze_run(run_dir: Path):
     print(f"\n[process] Analyzing {run_dir}...")
     
@@ -145,8 +166,23 @@ def analyze_run(run_dir: Path):
         return
 
     # Load counts
-    with open(counts_path, "r", encoding="utf-8") as f:
-        counts = json.load(f)
+    # Try loading existing filtered counts first (new standard name: filtered_counts.json)
+    # Then try legacy filtered counts (correct_particle_number_counts.json)
+    # Finally, fall back to raw counts (combined_counts.json or measurement_counts.json)
+    counts_path_filtered = run_dir / "filtered_counts.json"
+    counts_path_legacy = run_dir / "correct_particle_number_counts.json"
+    
+    if counts_path_filtered.exists():
+        print(f"[info] Using existing filtered counts from {counts_path_filtered}")
+        with open(counts_path_filtered, "r", encoding="utf-8") as f:
+            counts = json.load(f)
+    elif counts_path_legacy.exists():
+        print(f"[info] Using existing filtered counts from {counts_path_legacy}")
+        with open(counts_path_legacy, "r", encoding="utf-8") as f:
+            counts = json.load(f)
+    else:
+        with open(counts_path, "r", encoding="utf-8") as f:
+            counts = json.load(f)
 
     # Load metadata (could be in metadata.json or job_metadata.json)
     meta = {}
@@ -223,7 +259,7 @@ def analyze_run(run_dir: Path):
     plot.energy_vs_samples(run_dir, qc_results, conv_results, title_prefix=title_prefix, ylog=True)
     plot.convergence_comparison(run_dir, qc_results, conv_results, title_prefix=title_prefix, ylog=True)
 
-    # Plot statevector amplitudes
+    # Plot statevector amplitudes (top configurations)
     plot.statevector_coefficients(
         qc_results.sv.data,
         qc_results.fci_vec,
@@ -233,6 +269,21 @@ def analyze_run(run_dir: Path):
         title=f"{title_prefix} — Top 20 Configuration Coefficients" if title_prefix else None,
         include_spin_recovered=True,
         qsci_label='Counts SV',
+    )
+
+    # Plot statevector amplitudes (bottom configurations)
+    plot.statevector_coefficients(
+        qc_results.sv.data,
+        qc_results.fci_vec,
+        run_dir,
+        n_top=20,
+        ylog=False,
+        title=f"{title_prefix} — Bottom 20 Configuration Coefficients" if title_prefix else None,
+        include_spin_recovered=True,
+        qsci_label='Counts SV',
+        filename='statevector_coefficients_rev.png',
+        order='ascending',
+        include_full=False,
     )
 
     # If available, also plot the simulated statevector amplitudes
@@ -265,12 +316,23 @@ def analyze_run(run_dir: Path):
         except Exception as e:
             print(f"Warning: Failed to load or plot simulated statevector: {e}")
 
+    # Plot all configurations horizontal (ordered by FCI)
+    _plot_all_coefficients_horizontal(
+        qc_results.sv.data,
+        qc_results.fci_vec,
+        run_dir,
+        title_prefix=title_prefix,
+    )
+
     print(f"[success] Analysis completed for {run_dir}")
 
-def analyze_all():
+def analyze_all(sub_dir: str | None = None):
     base_dir = Path(__file__).resolve().parent
     data_root = base_dir / "data"
     
+    if sub_dir:
+        data_root = data_root / sub_dir
+
     if not data_root.exists():
         print(f"[info] Data directory not found: {data_root}")
         return
@@ -321,4 +383,4 @@ def analyze_all():
             continue
 
 if __name__ == "__main__":
-    analyze_all()
+    analyze_all(sub_dir=SUB_DIR)

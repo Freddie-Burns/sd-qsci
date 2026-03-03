@@ -5,7 +5,7 @@ from datetime import datetime
 from collections import Counter
 
 # Target directory containing subfolders with measurement_counts.json
-TARGET_DIR = Path(__file__).resolve().parent / "data" / "14b_h4_forte" / "20260130-212325"
+TARGET_DIR = Path(__file__).resolve().parent / "data" / "14e_h6_ankaa"
 
 def get_counts_from_path(path):
     """Helper to get counts from a path, checking for various possible filenames."""
@@ -146,8 +146,8 @@ if __name__ == "__main__":
     
     # 1. Combine batches within each directory
     targets = [
-        data_dir / "14f_h6_forte" / "20260130-220739",
-        data_dir / "14f_h6_forte" / "20260130-220814"
+        data_dir / "14e_h6_ankaa" / "20260130-215918",
+        data_dir / "14e_h6_ankaa" / "20260130-215923"
     ]
 
     for target in targets:

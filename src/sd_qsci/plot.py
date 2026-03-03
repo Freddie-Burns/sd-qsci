@@ -445,6 +445,7 @@ def statevector_coefficients(
     qsci_label: str = 'QSCI',
     filename: str = 'statevector_coefficients.png',
     include_full: bool = True,
+    order: str = 'descending',
 ):
     """
     Plot comparison of QSCI (or custom label), optional spin-recovered QSCI, and FCI statevector coefficients.
@@ -463,9 +464,10 @@ def statevector_coefficients(
         Directory to save the PNG files.
     n_top : int, optional
         Number of top configurations to show in the first plot. Default is 20.
-
-    Parameters
-    ----------
+    ylog : bool, optional
+        Whether to use a log scale for the y-axis. Default is False.
+    title : str, optional
+        Plot title. Defaults to 'Top N Configuration Coefficients'.
     include_spin_recovered : bool, optional
         Whether to include the spin-recovered series in the plots. Defaults to True.
     qsci_label : str, optional
@@ -474,6 +476,9 @@ def statevector_coefficients(
         Filename for the top-N plot. Defaults to 'statevector_coefficients.png'.
     include_full : bool, optional
         Whether to create the "full" plot of all significant configurations. Defaults to True.
+    order : str, optional
+        Sorting order for FCI coefficients: 'descending' (largest first) or 'ascending' (smallest first).
+        Defaults to 'descending'.
 
     Returns
     -------
@@ -488,7 +493,21 @@ def statevector_coefficients(
     fci_abs = np.abs(fci_vec)
     # Build spin-recovered amplitudes from the provided QSCI vector (if needed)
     qsci_symm_vec = spin_symm_amplitudes(qsci_vec) if include_spin_recovered else np.zeros_like(qsci_vec)
-    top_indices = np.argsort(fci_abs)[-n_top:][::-1]
+    
+    if order == 'descending':
+        top_indices = np.argsort(fci_abs)[-n_top:][::-1]
+    elif order == 'ascending':
+        # Select indices where FCI is non-zero (significant), then take the smallest ones
+        significant_indices = np.where(fci_abs > 1e-10)[0]
+        if len(significant_indices) > 0:
+            # Sort significant indices by fci_abs
+            sorted_sig_indices = significant_indices[np.argsort(fci_abs[significant_indices])]
+            top_indices = sorted_sig_indices[:n_top]
+        else:
+            # Fallback if everything is zero (unlikely for FCI)
+            top_indices = np.argsort(fci_abs)[:n_top]
+    else:
+        raise ValueError("order must be 'descending' or 'ascending'")
 
     qsci_coefs = np.abs(qsci_vec[top_indices])
     qsci_symm_coefs = np.abs(qsci_symm_vec[top_indices])
@@ -497,7 +516,7 @@ def statevector_coefficients(
     sns.set_style("whitegrid")
     fig, ax = plt.subplots(figsize=(14, 8))
 
-    x = np.arange(n_top)
+    x = np.arange(len(top_indices))
     # Use different bar placement/width depending on whether we include the third series
     if include_spin_recovered:
         width = 0.28
@@ -521,7 +540,7 @@ def statevector_coefficients(
     ax.set_ylabel('|Coefficient|', fontsize=12)
 
     if title is None:
-        title = f'Top {n_top} Configuration Coefficients'
+        title = f'Top {n_top} Configuration Coefficients' if order == 'descending' else f'Bottom {n_top} Configuration Coefficients'
     ax.set_title(title, fontsize=14, fontweight='bold')
 
     if ylog:

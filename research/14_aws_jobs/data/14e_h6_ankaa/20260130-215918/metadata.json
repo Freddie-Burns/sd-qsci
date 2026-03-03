@@ -1,5 +1,5 @@
 {
-  "molecule": "H4",
+  "molecule": "H6",
   "geometry": "\n    H 0 0 0.0\n    H 0 0 2.0\n    H 0 0 4.0\n    H 0 0 6.0\n    H 0 0 8.0\n    H 0 0 10.0\n    ",
   "basis": "sto-3g",
   "n_qubits": 12,

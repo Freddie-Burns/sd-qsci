@@ -4,7 +4,7 @@
       "path": "/home/fredd/code/sd-qsci/research/14_aws_jobs/data/14e_h6_ankaa/20260130-215923",
       "timestamp": "20260130-215923",
       "metadata": {
-        "molecule": "H4",
+        "molecule": "H6",
         "geometry": "\n    H 0 0 0.0\n    H 0 0 2.0\n    H 0 0 4.0\n    H 0 0 6.0\n    H 0 0 8.0\n    H 0 0 10.0\n    ",
         "basis": "sto-3g",
         "n_qubits": 12,
@@ -20,7 +20,7 @@
       "path": "/home/fredd/code/sd-qsci/research/14_aws_jobs/data/14e_h6_ankaa/20260130-215918",
       "timestamp": "20260130-215918",
       "metadata": {
-        "molecule": "H4",
+        "molecule": "H6",
         "geometry": "\n    H 0 0 0.0\n    H 0 0 2.0\n    H 0 0 4.0\n    H 0 0 6.0\n    H 0 0 8.0\n    H 0 0 10.0\n    ",
         "basis": "sto-3g",
         "n_qubits": 12,
@@ -33,9 +33,9 @@
       }
     }
   ],
-  "combined_at": "20260210-114203",
+  "combined_at": "20260219-113823",
   "type": "uhf_combined",
   "geometry": "\n    H 0 0 0.0\n    H 0 0 2.0\n    H 0 0 4.0\n    H 0 0 6.0\n    H 0 0 8.0\n    H 0 0 10.0\n    ",
   "device": "Ankaa-3",
-  "molecule": "H4"
+  "molecule": "H6"
 }
