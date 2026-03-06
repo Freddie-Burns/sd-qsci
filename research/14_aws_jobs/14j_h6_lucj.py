@@ -17,6 +17,7 @@ from sd_qsci.utils import uhf_from_rhf
 
 # Script-specific tolerances
 CHEM_ACC = 1.6e-3
+LAYERS = 1
 
 
 def main():
@@ -28,7 +29,8 @@ def main():
     n_atoms = 6
 
     # Data directory as requested: research/14_aws_jobs/data/14j_h6_lucj
-    data_dir = Path("research/14_aws_jobs/data/14j_h6_lucj")
+    base_path = Path(__file__).parent.resolve()
+    data_dir = base_path / "data" / "14j_h6_lucj" / f"{LAYERS}_layers"
 
     print(f"Running H{n_atoms} chain bond length: {bond_length:.2f} Angstrom")
 
@@ -39,17 +41,13 @@ def main():
     ccsd = CCSD(rhf).run()
 
     backend = Aer.get_backend("statevector_simulator")
-    qc = circuit.get_lucj_circuit(ccsd_obj=ccsd, backend=backend, n_reps=10)
+    qc = circuit.get_lucj_circuit(ccsd_obj=ccsd, backend=backend, n_reps=LAYERS)
 
     # Ensure output directory exists and save an image of the LUCJ circuit
     data_dir.mkdir(parents=True, exist_ok=True)
     circuit_path = data_dir / 'lucj_circuit.png'
-    try:
-        circuit_drawer(qc, output='mpl', filename=str(circuit_path), fold=-1, idle_wires=False)
-        print(f"Saved LUCJ circuit image to: {circuit_path}")
-    except Exception as e:
-        # Fall back silently if visualization is unavailable
-        print(f"Warning: Failed to save LUCJ circuit image ({e})")
+    circuit_drawer(qc, output='mpl', filename=str(circuit_path), fold=-1, idle_wires=False)
+    print(f"Saved LUCJ circuit image to: {circuit_path}")
 
     sv = circuit.simulate(qc)
     spin_symm_amp = analysis.spin_symm_amplitudes(sv.data)

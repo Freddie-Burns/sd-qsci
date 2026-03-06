@@ -14,7 +14,7 @@ from filter_counts import filter_particle_number_counts
 
 
 FILTER_PARTICLE_NUMBER = True
-SUB_DIR = "14e_h6_ankaa"
+SUB_DIR = "14a_h4_ankaa"
 
 
 def _build_title_prefix(meta: dict, *, bond_length: float | None, basis: str | None) -> str | None:
@@ -114,6 +114,7 @@ def _plot_all_coefficients_horizontal(
     
     n_qubits = int(np.log2(len(fci_vec))) if len(fci_vec) > 0 else 0
     bitstring_labels = [format(i, f"0{n_qubits}b") for i in sorted_sig_indices]
+    occupation_labels = [plot._occupation_vector(bs) for bs in bitstring_labels]
     
     # Create the plot
     sns.set_style("whitegrid")
@@ -129,7 +130,7 @@ def _plot_all_coefficients_horizontal(
     ax.barh(y - height, qsci_symm_coefs, height, label='Counts SV (Spin Recovered)', color='#D55E00', alpha=0.8)
     
     ax.set_yticks(y)
-    ax.set_yticklabels(bitstring_labels, fontsize=8)
+    ax.set_yticklabels(occupation_labels, fontsize=8)
     ax.invert_yaxis()  # Largest FCI at the top
     
     ax.set_xlabel('|Coefficient|', fontsize=12)
