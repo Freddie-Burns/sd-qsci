@@ -1,20 +1,9 @@
 """
-Unit tests for spin_symmetric_configs function from 08_spin_recovery.py
+Unit tests for spin_symmetric_configs from sd_qsci.spin.
 """
 import pytest
-import sys
-from pathlib import Path
 
-# Add research directory to path to import the function
-research_dir = Path(__file__).parent.parent / "research"
-sys.path.insert(0, str(research_dir))
-
-# Import directly from the module file (with underscore prefix removed for import)
-import importlib.util
-spec = importlib.util.spec_from_file_location("spin_recovery", research_dir / "08_spin_recovery" / "08_spin_recovery.py")
-spin_recovery = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(spin_recovery)
-spin_symmetric_configs = spin_recovery.spin_symmetric_configs
+from sd_qsci.spin import spin_symmetric_configs
 
 
 class TestSpinSymmetricConfigs:
@@ -184,8 +173,3 @@ class TestSpinSymmetricConfigs:
             assert cfg.count('1') == "11011010".count('1')
         # Should include the original
         assert "11011010" in result
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
-

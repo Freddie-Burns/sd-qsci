@@ -25,8 +25,8 @@ from sd_qsci import circuit, hamiltonian, spin
 
 
 # Defaults for tolerances (can be overridden by callers)
+# SV_TOL: threshold for treating a statevector amplitude as non-zero.
 DEFAULT_SV_TOL = 1e-16
-DEFAULT_FCI_TOL = 1e-16
 
 
 @dataclass
@@ -71,15 +71,12 @@ class ConvergenceResults:
     df: pd.DataFrame
     max_size: int
     n_configs_below_uhf: Optional[int]
-    n_configs_reach_fci: Optional[int]
     n_configs_below_uhf_symm: Optional[int]
-    n_configs_reach_fci_symm: Optional[int]
 
 
 def calc_convergence_data(
     qc_results: QuantumChemistryResults,
     sv_tol: float = DEFAULT_SV_TOL,
-    fci_tol: float = DEFAULT_FCI_TOL,
     spin_symm: bool = False,
 ) -> ConvergenceResults:
     """
@@ -92,9 +89,6 @@ def calc_convergence_data(
     sv_tol : float, optional
         Threshold for considering statevector amplitudes as present.
         Default is DEFAULT_SV_TOL.
-    fci_tol : float, optional
-        Tolerance for considering a QSCI energy equal to FCI.
-        Default is DEFAULT_FCI_TOL.
 
     Returns
     -------
@@ -113,12 +107,7 @@ def calc_convergence_data(
     mean_sample_numbers = []
 
     n_configs_below_uhf = None
-    n_configs_reach_fci = None
     n_configs_below_uhf_symm = None
-    n_configs_reach_fci_symm = None
-
-    print("sv norm:", np.linalg.norm(qc_results.sv.data))
-    print("spin symm amp norm:", np.linalg.norm(qc_results.spin_symm_amp))
 
     if spin_symm:
         data = qc_results.spin_symm_amp
@@ -155,12 +144,8 @@ def calc_convergence_data(
 
         if n_configs_below_uhf is None and qsci_energy < qc_results.uhf.e_tot:
             n_configs_below_uhf = size
-        if n_configs_reach_fci is None and abs(qsci_energy - qc_results.fci_energy) < fci_tol:
-            n_configs_reach_fci = size
         if n_configs_below_uhf_symm is None and symm_energy < qc_results.uhf.e_tot:
             n_configs_below_uhf_symm = size
-        if n_configs_reach_fci_symm is None and abs(symm_energy - qc_results.fci_energy) < fci_tol:
-            n_configs_reach_fci_symm = size
 
     df = pd.DataFrame({
         'subspace_size': subspace_sizes,
@@ -176,9 +161,7 @@ def calc_convergence_data(
         df=df,
         max_size=max_size,
         n_configs_below_uhf=n_configs_below_uhf,
-        n_configs_reach_fci=n_configs_reach_fci,
         n_configs_below_uhf_symm=n_configs_below_uhf_symm,
-        n_configs_reach_fci_symm=n_configs_reach_fci_symm,
     )
 
 
@@ -251,8 +234,6 @@ def calc_qsci_energy_with_size(
     n_configs: int,
     return_vector: bool = False,
     spin_symmetry: bool = False,
-    enforce_singlet: bool = False,
-    singlet_tol: float = 1e-6,
 ):
     """
     Compute QSCI energy by diagonalising Hamiltonian in a subspace.
@@ -271,6 +252,10 @@ def calc_qsci_energy_with_size(
     return_vector : bool, optional
         If True, also return the full-space vector and configuration indices.
         Default is False.
+    spin_symmetry : bool, optional
+        If True, expand the selected indices to include all spin-symmetric
+        partners before building the subspace, then trim to n_configs.
+        Default is False.
 
     Returns
     -------
@@ -286,11 +271,20 @@ def calc_qsci_energy_with_size(
 
     if spin_symmetry:
         n_bits = int(log2(len(data)))
-        idx = spin_symm_indices(idx, n_bits)[:n_configs]
+        # Expand each selected index to include its spin-symmetric partners,
+        # preserving the amplitude-descending order and removing duplicates.
+        expanded: list[int] = []
+        seen: set[int] = set()
+        for i in idx:
+            for j in spin_symm_indices(int(i), n_bits):
+                if j not in seen:
+                    seen.add(j)
+                    expanded.append(j)
+        idx = np.array(expanded[:n_configs])
 
     H_sub = H[np.ix_(idx, idx)]
 
-    # Solve for the lowest eigenpair only (singlet enforcement removed in analysis)
+    # Solve for the lowest eigenpair only
     N = H_sub.shape[0]
     if N <= 50:
         evals, evecs = eigh(H_sub.toarray() if hasattr(H_sub, 'toarray') else H_sub)
@@ -301,13 +295,8 @@ def calc_qsci_energy_with_size(
             vals, vecs = eigsh(H_sub, k=1, which='SA', maxiter=5000)
             E0 = float(vals[0])
             psi0 = vecs[:, 0]
-        except ArpackNoConvergence as e:
+        except ArpackNoConvergence:
             # Fallback to dense solver if ARPACK fails to converge
-            evals, evecs = eigh(H_sub.toarray() if hasattr(H_sub, 'toarray') else H_sub)
-            E0 = float(evals[0])
-            psi0 = evecs[:, 0]
-        except Exception:
-            # Catch other potential issues (e.g. empty H_sub if n_configs=0)
             evals, evecs = eigh(H_sub.toarray() if hasattr(H_sub, 'toarray') else H_sub)
             E0 = float(evals[0])
             psi0 = evecs[:, 0]
@@ -386,18 +375,9 @@ def run_quantum_chemistry_calculations(
         Restricted Hartree-Fock object.
     bond_length : float, optional
         Bond length for reference. Default is None.
-    uhf: scf.UHF, optional
-        UHF object to use for orbital rotation.
-        If not provided, it is computed
-
-    Parameters
-    -------
-    mol : gto.Mole
-        PySCF molecule object.
-    rhf : scf.RHF
-        Restricted Hartree-Fock object.
-    bond_length : float, optional
-        Bond length for reference. Default is None.
+    uhf : scf.UHF, optional
+        UHF object to use for orbital rotation. If not provided, it is
+        computed via stability analysis from the RHF reference.
     statevector : qiskit.quantum_info.Statevector or numpy.ndarray, optional
         If provided, this statevector is used instead of simulating the
         circuit. If a numpy array is provided, it will be wrapped into a
@@ -511,7 +491,6 @@ def save_convergence_data(
         'fci_energy': qc_results.fci_energy,
         'n_fci_configs': qc_results.n_fci_configs,
         'n_configs_below_uhf': conv_results.n_configs_below_uhf if conv_results.n_configs_below_uhf else 'Never',
-        'n_configs_reach_fci': conv_results.n_configs_reach_fci if conv_results.n_configs_reach_fci else 'Never',
         'max_subspace_size': conv_results.max_size,
         'min_qsci_energy': conv_results.df['qsci_energy'].min(),
         'energy_diff_to_fci': conv_results.df['qsci_energy'].min() - qc_results.fci_energy,

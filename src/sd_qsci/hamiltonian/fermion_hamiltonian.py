@@ -1,5 +1,9 @@
 import numpy as np
-from line_profiler import profile
+try:
+    from line_profiler import profile
+except ImportError:
+    def profile(f):
+        return f
 from scipy import sparse
 from scipy.sparse import coo_matrix, csr_matrix, identity, lil_matrix
 from .fermion_ops import annihilate

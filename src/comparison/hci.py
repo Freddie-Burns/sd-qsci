@@ -107,8 +107,6 @@ def run_hci(
         except OSError: pass
 
 
-__all__ = ["run_hci"]
-
 
 def run_hci_multistage(
     mol,

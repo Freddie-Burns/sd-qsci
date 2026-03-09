@@ -11,13 +11,11 @@ requires-python = ">=3.12"
 dependencies = [
     "amazon-braket-sdk>=1.106.0",
     "ffsim>=0.0.61",
-    "line-profiler>=5.0.0",
     "matplotlib>=3.10.7",
     "numpy>=2.3.4",
     "pandas>=2.3.3",
     "pylatexenc>=2.10",
     "pyscf>=2.11.0",
-    "pytest>=8.4.2",
     "qiskit>=2.2.3",
     "qiskit-aer>=0.17.2",
     "qiskit-braket-provider>=0.10.0",
@@ -36,7 +34,9 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "furo>=2025.9.25",
+    "line-profiler>=5.0.0",
     "myst-parser>=4.0.1",
+    "pytest>=8.4.2",
     "sphinx>=8.2.3",
     "sphinx-autobuild>=2025.8.25",
     "sphinx-rtd-theme>=3.0.2",

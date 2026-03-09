@@ -22,8 +22,13 @@ clear ImportError with installation hints.
 from __future__ import annotations  # prevents sphinx docs type error
 
 import numpy as np
+import os
 import ffsim
-from line_profiler import profile
+try:
+    from line_profiler import profile
+except ImportError:
+    def profile(f):
+        return f
 from pyscf.cc import CCSD
 from pyscf.gto import Mole
 from pyscf.scf.hf import RHF
@@ -80,22 +85,7 @@ def get_lucj_circuit(
     circuit = circuit.decompose().decompose()
 
     if homo_lumo_expansion:
-        # lightcone optimization
-        n_gates = len(circuit.data)
-        n_gates_prior = None
-        while n_gates != n_gates_prior:
-            n_gates_prior = n_gates
-            drop_gate_indices = []
-            for index,gate in enumerate(circuit.data):
-                if gate.name == "xx_plus_yy":
-                    gate_qubits = {q._index for q in gate.qubits}
-                    gate_intersections = [gate_prior.name for gate_prior in circuit.data[:index] if gate_prior.name != 'barrier' and gate_qubits.intersection({q._index for q in gate_prior.qubits})!=set()]
-                    if gate_intersections == [] or gate_intersections == ['x', 'x']:
-                        drop_gate_indices.append(index)
-            drop_gate_indices = list(sorted(set(drop_gate_indices)))
-            for i,index in enumerate(drop_gate_indices):
-                circuit.data.pop(index-i)
-            n_gates = len(circuit.data)
+        circuit = _apply_lightcone_pruning(circuit)
 
     # Keep block-spin ordering (alpha first, then beta): uuuu...dddd...
     # Example for 4 spatial orbitals HF occupations -> 00110011 (alpha block then beta block)
@@ -283,28 +273,7 @@ def uhf_rotation_then_lucj_circuit(
     qc = qc.decompose().decompose()
 
     if homo_lumo_expansion:
-        # lightcone optimization (same heuristic used in get_lucj_circuit)
-        n_gates = len(qc.data)
-        n_gates_prior = None
-        while n_gates != n_gates_prior:
-            n_gates_prior = n_gates
-            drop_gate_indices = []
-            for index, gate in enumerate(qc.data):
-                if getattr(gate, "name", None) == "xx_plus_yy":
-                    gate_qubits = {q._index for q in gate.qubits}
-                    gate_intersections = [
-                        gate_prior.name
-                        for gate_prior in qc.data[:index]
-                        if gate_prior.name != "barrier"
-                        and gate_qubits.intersection({q._index for q in gate_prior.qubits})
-                        != set()
-                    ]
-                    if gate_intersections == [] or gate_intersections == ["x", "x"]:
-                        drop_gate_indices.append(index)
-            drop_gate_indices = list(sorted(set(drop_gate_indices)))
-            for i, index in enumerate(drop_gate_indices):
-                qc.data.pop(index - i)
-            n_gates = len(qc.data)
+        qc = _apply_lightcone_pruning(qc)
 
     tqc = transpile(qc, backend=backend, optimization_level=3)
     _count_and_log_gates(tqc, label="uhf_plus_lucj")
@@ -336,6 +305,37 @@ def simulate(qc, *, optimization_level: int=1):
     return result.get_statevector()
 
 
+
+def _apply_lightcone_pruning(qc: QuantumCircuit) -> QuantumCircuit:
+    """
+    Remove xx_plus_yy gates that act only on unoccupied qubits (lightcone
+    pruning heuristic). Iterates until no further gates can be dropped.
+
+    A gate is pruned if the only preceding gates on its qubits are either
+    nothing or a pair of X gates (which initialise the HF occupation).
+    """
+    n_gates = len(qc.data)
+    n_gates_prior = None
+    while n_gates != n_gates_prior:
+        n_gates_prior = n_gates
+        drop_gate_indices = []
+        for index, gate in enumerate(qc.data):
+            if getattr(gate, "name", None) == "xx_plus_yy":
+                gate_qubits = {q._index for q in gate.qubits}
+                gate_intersections = [
+                    gate_prior.name
+                    for gate_prior in qc.data[:index]
+                    if gate_prior.name != "barrier"
+                    and gate_qubits.intersection({q._index for q in gate_prior.qubits}) != set()
+                ]
+                if gate_intersections == [] or gate_intersections == ["x", "x"]:
+                    drop_gate_indices.append(index)
+        drop_gate_indices = list(sorted(set(drop_gate_indices)))
+        for i, index in enumerate(drop_gate_indices):
+            qc.data.pop(index - i)
+        n_gates = len(qc.data)
+    return qc
+
 def _count_and_log_gates(qc: QuantumCircuit, *, label: str):
     """
     Count 1-qubit and 2-qubit gates in a circuit, print them, and append to
@@ -364,23 +364,29 @@ def _count_and_log_gates(qc: QuantumCircuit, *, label: str):
             pass
 
     total = one_q + two_q
-    msg = f"[sd_qsci] {label} circuit gates: 1q={one_q}, 2q={two_q}, total(<=2q)={total}"
-    print(msg)
 
-    # Append to CSV at repo root
-    try:
-        repo_root = Path(__file__).resolve().parents[2]
-        csv_path = repo_root / "gate_counts.csv"
-        header_needed = not csv_path.exists()
-        timestamp = datetime.now().isoformat(timespec="seconds")
-        line = f"{timestamp},{label},{one_q},{two_q},{total}\n"
-        with csv_path.open("a", encoding="utf-8") as f:
-            if header_needed:
-                f.write("timestamp,label,one_qubit,two_qubit,total_leq_2\n")
-            f.write(line)
-    except Exception:
-        # Silently ignore logging failures to avoid breaking workflows
-        pass
+    # Only log to CSV when explicitly enabled via environment variable, so
+    # normal test runs do not accumulate entries in gate_counts.csv.
+    if os.environ.get("SD_QSCI_LOG_GATES"):
+        import logging as _logging
+        _logging.getLogger(__name__).info(
+            "[sd_qsci] %s circuit gates: 1q=%d, 2q=%d, total(<=2q)=%d",
+            label, one_q, two_q, total,
+        )
+        try:
+            repo_root = Path(__file__).resolve().parents[2]
+            csv_path = repo_root / "gate_counts.csv"
+            header_needed = not csv_path.exists()
+            timestamp = datetime.now().isoformat(timespec="seconds")
+            line = f"{timestamp},{label},{one_q},{two_q},{total}
+"
+            with csv_path.open("a", encoding="utf-8") as f:
+                if header_needed:
+                    f.write("timestamp,label,one_qubit,two_qubit,total_leq_2
+")
+                f.write(line)
+        except Exception:
+            pass
 
 
 __all__ = [

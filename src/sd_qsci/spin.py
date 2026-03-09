@@ -318,29 +318,3 @@ def expectation(op: csc_matrix, psi: np.ndarray) -> complex:
     psi_norm = psi / np.sqrt(norm)
     return np.vdot(psi_norm, op @ psi_norm)
 
-
-# ---------- Example usage ----------
-if __name__ == "__main__":
-    # One spatial orbital => modes: [alpha0, beta0]
-    M = 1
-    S2 = total_spin_S2(M)
-
-    # Your example state: (|00> + |10>)/sqrt(2)
-    # Basis order is [|00>, |01>, |10>, |11>] with alpha first, then beta.
-    psi = np.array([0.707, 0.0, 0.707, 0.0], dtype=float)
-
-    val = expectation(S2, psi)
-    print(f"<S^2> = {val.real:.6f}")
-
-    # Some sanity checks:
-    # |00>  (vacuum)   -> <S^2> = 0
-    # |10>  (α only)   -> <S^2> = 3/4
-    # |01>  (β only)   -> <S^2> = 3/4
-    # |11>  (αβ pair)  -> <S^2> = 0  (singlet on one spatial orbital)
-    for label, vec in {
-        "|00>": np.array([1,0,0,0], float),
-        "|10>": np.array([0,0,1,0], float),
-        "|01>": np.array([0,1,0,0], float),
-        "|11>": np.array([0,0,0,1], float),
-    }.items():
-        print(label, "->", expectation(S2, vec).real)

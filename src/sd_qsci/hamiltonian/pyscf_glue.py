@@ -1,5 +1,9 @@
 import numpy as np
-from line_profiler import profile
+try:
+    from line_profiler import profile
+except ImportError:
+    def profile(f):
+        return f
 from pyscf import ao2mo
 from .spin_blocks import spin_expand_1e, spin_expand_2e_phys
 from .fermion_hamiltonian import hamiltonian_matrix
