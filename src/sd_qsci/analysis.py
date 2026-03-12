@@ -78,6 +78,7 @@ def calc_convergence_data(
     qc_results: QuantumChemistryResults,
     sv_tol: float = DEFAULT_SV_TOL,
     spin_symm: bool = False,
+    sample_multiplier: float = 1.0,
 ) -> ConvergenceResults:
     """
     Calculate QSCI and FCI subspace energies for varying subspace sizes.
@@ -89,6 +90,12 @@ def calc_convergence_data(
     sv_tol : float, optional
         Threshold for considering statevector amplitudes as present.
         Default is DEFAULT_SV_TOL.
+    spin_symm : bool, optional
+        If True, use spin-symmetrised amplitudes for selection.
+        Default is False.
+    sample_multiplier : float, optional
+        Multiplier for the mean sample number calculation.
+        Default is 1.0.
 
     Returns
     -------
@@ -139,7 +146,7 @@ def calc_convergence_data(
 
         idx = np.argsort(np.abs(data))[-size:]
         min_coeff = np.min(np.abs(data[idx]))
-        mean_sample_number = 1.0 / (min_coeff ** 2)
+        mean_sample_number = sample_multiplier / (min_coeff ** 2)
         mean_sample_numbers.append(mean_sample_number)
 
         if n_configs_below_uhf is None and qsci_energy < qc_results.uhf.e_tot:

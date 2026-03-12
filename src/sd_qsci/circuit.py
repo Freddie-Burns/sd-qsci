@@ -378,12 +378,10 @@ def _count_and_log_gates(qc: QuantumCircuit, *, label: str):
             csv_path = repo_root / "gate_counts.csv"
             header_needed = not csv_path.exists()
             timestamp = datetime.now().isoformat(timespec="seconds")
-            line = f"{timestamp},{label},{one_q},{two_q},{total}
-"
+            line = f"{timestamp},{label},{one_q},{two_q},{total}"
             with csv_path.open("a", encoding="utf-8") as f:
                 if header_needed:
-                    f.write("timestamp,label,one_qubit,two_qubit,total_leq_2
-")
+                    f.write("timestamp,label,one_qubit,two_qubit,total_leq_2")
                 f.write(line)
         except Exception:
             pass

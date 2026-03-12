@@ -110,6 +110,7 @@ def convergence_comparison(
         color='#009E73',
     )
 
+    # Reference lines (RHF and UHF relative to FCI)
     ax.axhline(
         y=qc_results.rhf.e_tot - fci_E,
         color='blue',
@@ -117,6 +118,8 @@ def convergence_comparison(
         linewidth=2,
         label=f'RHF − FCI: {(qc_results.rhf.e_tot - fci_E):.4f} Ha',
     )
+    # Plot both AFM and FM UHF if we can find them, otherwise just the current one
+    # Note: qc_results.uhf is the one used for the current run
     ax.axhline(
         y=qc_results.uhf.e_tot - fci_E,
         color='orange',
@@ -156,12 +159,242 @@ def convergence_comparison(
     plt.close(fig)
 
 
+def multi_run_convergence_comparison(
+    data_dir: Path,
+    results_dict: dict[str, tuple[QuantumChemistryResults, ConvergenceResults]],
+    title_prefix: Optional[str] = None,
+):
+    """
+    Create and save a convergence comparison plot for multiple runs.
+
+    Parameters
+    ----------
+    data_dir : Path
+        Directory to save the PNG file.
+    results_dict : dict
+        Mapping of labels to (qc_results, conv_results) tuples.
+    title_prefix : str, optional
+        Prefix to add to the plot title. Default is None.
+    """
+    sns.set_style("whitegrid")
+    fig, ax = plt.subplots(figsize=(12, 8))
+
+    # Chemical accuracy region
+    y_lo = 1.0e-4
+    chem_acc = 1.6e-3
+    trans = transforms.blended_transform_factory(ax.transAxes, ax.transData)
+    bg = patches.Rectangle(
+        (0.0, y_lo), 1.0, chem_acc - y_lo,
+        transform=trans, facecolor='#D0D0D0', edgecolor='none', alpha=0.35, zorder=0,
+    )
+    ax.add_patch(bg)
+    hat = patches.Rectangle(
+        (0.0, y_lo), 1.0, chem_acc - y_lo,
+        transform=trans, facecolor='none', edgecolor='#2ca02c', hatch='///', linewidth=0.0, zorder=0,
+    )
+    ax.add_patch(hat)
+    proxy = patches.Rectangle(
+        (0, 0),
+        1,
+        1,
+        facecolor='#D0D0D0',
+        edgecolor='#2ca02c',
+        hatch='///',
+        alpha=0.35,
+        label='chemical accuracy',
+    )
+    ax.add_artist(proxy)
+    ax.set_ylim(bottom=y_lo)
+
+    colors = sns.color_palette("husl", len(results_dict))
+    
+    first_label = list(results_dict.keys())[0]
+    qc_ref, _ = results_dict[first_label]
+    fci_E = qc_ref.fci_energy
+
+    for i, (label, (qc_res, conv_res)) in enumerate(results_dict.items()):
+        color = colors[i]
+        # Plot spin-recovered energy (spin-recovery usually better)
+        spin_closed_sizes = set(spin_closed_subspace_sizes(qc_res.sv.data))
+        df_symm = conv_res.df[conv_res.df['subspace_size'].isin(spin_closed_sizes)]
+        
+        ax.plot(
+            df_symm['subspace_size'],
+            df_symm['spin_symm_energy'] - fci_E,
+            '^-',
+            label=f"{label} (Spin Recovered)",
+            linewidth=2,
+            markersize=4,
+            color=color,
+        )
+
+    # Reference lines
+    ax.axhline(
+        y=qc_ref.rhf.e_tot - fci_E,
+        color='blue',
+        linestyle='--',
+        linewidth=2,
+        label=f'RHF − FCI: {(qc_ref.rhf.e_tot - fci_E):.4f} Ha',
+    )
+
+    # Add UHF lines if they exist in results_dict
+    if "antiferromagnetic" in results_dict:
+        qc_afm, _ = results_dict["antiferromagnetic"]
+        ax.axhline(
+            y=qc_afm.uhf.e_tot - fci_E,
+            color='orange',
+            linestyle='--',
+            linewidth=2,
+            label=f'AFM UHF − FCI: {(qc_afm.uhf.e_tot - fci_E):.4f} Ha',
+        )
+    if "ferromagnetic" in results_dict:
+        qc_fm, _ = results_dict["ferromagnetic"]
+        ax.axhline(
+            y=qc_fm.uhf.e_tot - fci_E,
+            color='red',
+            linestyle='--',
+            linewidth=2,
+            label=f'FM UHF − FCI: {(qc_fm.uhf.e_tot - fci_E):.4f} Ha',
+        )
+    elif "antiferromagnetic" not in results_dict:
+        # Fallback if names are different
+        ax.axhline(
+            y=qc_ref.uhf.e_tot - fci_E,
+            color='orange',
+            linestyle='--',
+            linewidth=2,
+            label=f'UHF − FCI: {(qc_ref.uhf.e_tot - fci_E):.4f} Ha',
+        )
+
+    ax.set_yscale('log')
+    ax.set_xlabel('Subspace Size', fontsize=12)
+    ax.set_ylabel('Energy Error (Hartree)', fontsize=12)
+    
+    bond_info = f"Bond Length = {qc_ref.bond_length:.2f} Å" if qc_ref.bond_length is not None else ""
+    title = f"Multi-Run Convergence Comparison\n{bond_info}"
+    if title_prefix:
+        title = f"{title_prefix}: " + title
+    ax.set_title(title, fontsize=14, fontweight='bold')
+    ax.legend(fontsize=10, loc='best')
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    out_path = Path(data_dir) / 'multi_run_convergence.png'
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_path, dpi=300, bbox_inches='tight')
+    plt.close(fig)
+
+
+def multi_run_energy_vs_samples(
+    data_dir: Path,
+    results_dict: dict[str, tuple[QuantumChemistryResults, ConvergenceResults]],
+    title_prefix: Optional[str] = None,
+):
+    """
+    Create and save an energy vs samples plot for multiple runs.
+
+    Parameters
+    ----------
+    data_dir : Path
+        Directory to save the PNG file.
+    results_dict : dict
+        Mapping of labels to (qc_results, conv_results) tuples.
+    title_prefix : str, optional
+        Prefix to add to the plot title. Default is None.
+    """
+    sns.set_style("whitegrid")
+    fig, ax = plt.subplots(figsize=(12, 8))
+
+    # Chemical accuracy region
+    y_lo = 1.0e-4
+    chem_acc = 1.6e-3
+    trans = transforms.blended_transform_factory(ax.transAxes, ax.transData)
+    bg = patches.Rectangle(
+        (0.0, y_lo), 1.0, chem_acc - y_lo,
+        transform=trans, facecolor='#D0D0D0', edgecolor='none', alpha=0.35, zorder=0,
+    )
+    ax.add_patch(bg)
+    hat = patches.Rectangle(
+        (0.0, y_lo), 1.0, chem_acc - y_lo,
+        transform=trans, facecolor='none', edgecolor='#2ca02c', hatch='///', linewidth=0.0, zorder=0,
+    )
+    ax.add_patch(hat)
+    proxy = patches.Rectangle(
+        (0, 0),
+        1,
+        1,
+        facecolor='#D0D0D0',
+        edgecolor='#2ca02c',
+        hatch='///',
+        alpha=0.35,
+        label='chemical accuracy',
+    )
+    ax.add_artist(proxy)
+    ax.set_ylim(bottom=y_lo)
+
+    colors = sns.color_palette("husl", len(results_dict))
+    
+    first_label = list(results_dict.keys())[0]
+    qc_ref, _ = results_dict[first_label]
+    fci_E = qc_ref.fci_energy
+
+    def mean_samples_for_sizes(data: np.ndarray, sizes_list: list[int], multiplier: float = 1.0) -> list[float]:
+        vals = []
+        order = np.argsort(np.abs(data))
+        for size in sizes_list:
+            idx = order[-int(size):]
+            min_coeff = float(np.min(np.abs(data[idx]))) if len(idx) > 0 else 0.0
+            ms = float(multiplier / (min_coeff ** 2)) if min_coeff > 0 else np.inf
+            vals.append(ms)
+        return vals
+
+    for i, (label, (qc_res, conv_res)) in enumerate(results_dict.items()):
+        color = colors[i]
+        multiplier = 2.0 if "highest" in label.lower() else 1.0
+        
+        sizes = list(conv_res.df['subspace_size'])
+        spin_sizes_all = sorted(set(spin_closed_subspace_sizes(qc_res.sv.data)))
+        max_size = int(sizes[-1]) if len(sizes) > 0 else 0
+        spin_sizes = [int(s) for s in spin_sizes_all if int(s) <= max_size]
+        
+        ms_symm = mean_samples_for_sizes(qc_res.spin_symm_amp, spin_sizes, multiplier=multiplier)
+        df_symm = conv_res.df[conv_res.df['subspace_size'].isin(spin_sizes)]
+        
+        ax.semilogx(
+            ms_symm,
+            list(df_symm['spin_symm_energy'] - fci_E),
+            's-',
+            label=f"{label} (Spin Recovered)",
+            linewidth=2,
+            markersize=4,
+            color=color,
+        )
+
+    ax.set_yscale('log')
+    ax.set_xlabel('Mean Sample Number', fontsize=12)
+    ax.set_ylabel('Energy Error (Hartree)', fontsize=12)
+    
+    bond_info = f"Bond Length = {qc_ref.bond_length:.2f} Å" if qc_ref.bond_length is not None else ""
+    title = f"Multi-Run Energy vs Samples\n{bond_info}"
+    if title_prefix:
+        title = f"{title_prefix}: " + title
+    ax.set_title(title, fontsize=14, fontweight='bold')
+    ax.legend(fontsize=10, loc='best')
+    ax.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    out_path = Path(data_dir) / 'multi_run_energy_vs_samples.png'
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_path, dpi=300, bbox_inches='tight')
+    plt.close(fig)
+
+
 def energy_vs_samples(
     data_dir: Path,
     qc_results: QuantumChemistryResults,
     conv_results: ConvergenceResults,
     title_prefix: Optional[str] = None,
-    ylog: bool = False,
+    ylog: bool = True,
     label_raw: str = 'UHF State',
     label_spin: str = 'UHF State Spin Recovered',
 ):
@@ -230,19 +463,22 @@ def energy_vs_samples(
     # Ensure consistent lower y-limit across plots
     ax.set_ylim(bottom=y_lo)
 
-    def mean_samples_for_sizes(data: np.ndarray, sizes_list: list[int]) -> list[float]:
+    def mean_samples_for_sizes(data: np.ndarray, sizes_list: list[int], multiplier: float = 1.0) -> list[float]:
         vals = []
         # Determine selection order by amplitude magnitude
         order = np.argsort(np.abs(data))
         for size in sizes_list:
             idx = order[-int(size):]
             min_coeff = float(np.min(np.abs(data[idx]))) if len(idx) > 0 else 0.0
-            ms = float(1.0 / (min_coeff ** 2)) if min_coeff > 0 else np.inf
+            ms = float(multiplier / (min_coeff ** 2)) if min_coeff > 0 else np.inf
             vals.append(ms)
         return vals
 
+    # Check if this is a "combined_highest" run from the data_dir name
+    multiplier = 2.0 if "combined_highest" in str(data_dir) else 1.0
+
     # Raw (UHF-rotated) amplitudes across all sizes
-    ms_raw = mean_samples_for_sizes(qc_results.sv.data, sizes)
+    ms_raw = mean_samples_for_sizes(qc_results.sv.data, sizes, multiplier=multiplier)
 
     # Spin-recovered amplitudes only at spin-closed subspace sizes
     spin_sizes_all = sorted(set(spin_closed_subspace_sizes(qc_results.sv.data)))
@@ -252,7 +488,7 @@ def energy_vs_samples(
         spin_sizes = [int(s) for s in spin_sizes_all if int(s) <= max_size]
     else:
         spin_sizes = []
-    ms_symm = mean_samples_for_sizes(qc_results.spin_symm_amp, spin_sizes) if len(spin_sizes) else []
+    ms_symm = mean_samples_for_sizes(qc_results.spin_symm_amp, spin_sizes, multiplier=multiplier) if len(spin_sizes) else []
 
     # Plot QSCI energy error (relative to FCI) vs mean sample number
     fci_E = qc_results.fci_energy

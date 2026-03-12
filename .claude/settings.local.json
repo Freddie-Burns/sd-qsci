@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -:*)",
+      "Read(///wsl$/Ubuntu/home/fredd/code/sd-qsci/src/comparison/**)",
+      "Read(///wsl$/Ubuntu/home/fredd/code/sd-qsci/src/sd_qsci/**)"
+    ]
+  }
+}

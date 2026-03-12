@@ -130,3 +130,32 @@ def find_spin_symmetric_configs(n_bits, idx):
     symm_configs = sorted(symm_configs, key=lambda x: int(x, 2))
     return sampled_configs, symm_configs
 
+
+def solve_with_spin_pattern(mol: Mole, pattern: list, label: str = "") -> UHF:
+    """
+    Run a UHF calculation initialized from a specific spin pattern.
+
+    Parameters
+    ----------
+    mol : pyscf.gto.Mole
+        Molecular system.
+    pattern : list of int
+        Spin pattern to seed the UHF calculation (e.g., [1, -1, 1, -1]).
+    label : str, optional
+        A label for the calculation.
+
+    Returns
+    -------
+    uhf : pyscf.scf.uhf.UHF
+        The resulting UHF mean-field object.
+    """
+    uhf = scf.UHF(mol)
+    dm = uhf.get_init_guess()
+    # Add a small perturbation to the density matrix based on the pattern
+    # This is a common way to seed spin-broken solutions in PySCF
+    for i, p in enumerate(pattern):
+        if i < mol.nao:
+            dm[0][i, i] += p * 0.5
+            dm[1][i, i] -= p * 0.5
+    uhf.kernel(dm0=dm)
+    return uhf

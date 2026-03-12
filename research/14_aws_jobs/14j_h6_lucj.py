@@ -22,7 +22,7 @@ LAYERS = 1
 
 def main():
     """
-    Run H6 chain energy calculations and analyze QSCI convergence.
+    Run H6 chain energy calculations and analyse QSCI convergence.
     """
     # Setup
     bond_length = 2.0
@@ -169,7 +169,6 @@ def print_summary(
     print(f"  Energy difference to FCI: {conv_results.df['qsci_energy'].min() - qc_results.fci_energy:.2e} Ha")
     print(f"\nMilestones:")
     print(f"  Configs to fall below UHF: {conv_results.n_configs_below_uhf if conv_results.n_configs_below_uhf else 'Never achieved'}")
-    print(f"  Configs to reach FCI (±{CHEM_ACC:.0e} Ha): {conv_results.n_configs_reach_fci if conv_results.n_configs_reach_fci else 'Never achieved'}")
     print(f"\nData saved to '{data_dir}' directory:")
     print("  - qsci_convergence.csv (full energy data)")
     print("  - summary.csv (summary statistics)")
